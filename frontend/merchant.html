@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoyaltyLink - 商户端</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 LoyaltyLink 商户管理</h1>
+        
+        <!-- 连接钱包 -->
+        <button id="connectBtn">连接 MetaMask</button>
+        <div id="account">账户: 未连接</div>
+        <div id="balance">余额: 0 LYL</div>
+        
+        <hr>
+        
+        <!-- 发积分（reward） -->
+        <h3>🎁 发放积分</h3>
+        <input type="text" id="rewardAddress" placeholder="用户地址 (0x...)">
+        <input type="number" id="rewardAmount" placeholder="数量" min="1">
+        <button id="rewardBtn">发放积分</button>
+        
+        <hr>
+        
+        <!-- 扣积分（spend） -->
+        <h3>💳 扣除积分</h3>
+        <input type="text" id="spendAddress" placeholder="用户地址 (0x...)">
+        <input type="number" id="spendAmount" placeholder="数量" min="1">
+        <button id="spendBtn">扣除积分</button>
+        
+        <!-- 状态提示 -->
+        <div id="status"></div>
+    </div>
+
+    <!-- Web3.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <!-- ABI 文件 -->
+    <!-- <script src="abi.json"></script> -->
+    <script src="merchant.js"></script>
+</body>
+</html>
