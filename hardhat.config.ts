@@ -1,10 +1,15 @@
 import { defineConfig } from "hardhat/config";
 import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 
-const MNEMONIC = process.env.MNEMONIC || "quick snow fox erode faith inject excite moment tunnel lamp crazy repeat";
+const MNEMONIC = process.env.MNEMONIC || "maid notable twist mutual dune speed come dolphin wet gaze scout sort";
 
 export default defineConfig({
-  solidity: "0.8.20",
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      evmVersion: "paris"
+    }
+  },
   networks: {
     ganache: {
       type: "http",

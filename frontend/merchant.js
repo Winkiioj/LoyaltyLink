@@ -1,7 +1,5 @@
 // ========== 全局变量 ==========
 let web3;
-let contract;
-const contractAddress = "0x2645b2fEf0e4f9c4edb462eB0637ceC1bD8f0035";
 
 // ========== 显示状态信息 ==========
 function showStatus(message, type) {
@@ -22,12 +20,12 @@ async function connectWallet() {
         }
         web3 = new Web3(window.ethereum);
         await window.ethereum.request({ method: 'eth_requestAccounts' });
-        
+
         const accounts = await web3.eth.getAccounts();
-        document.getElementById('account').innerText = 
+        document.getElementById('account').innerText =
             `账户: ${accounts[0].substring(0, 6)}...${accounts[0].substring(38)}`;
-        
-        await loadContract();
+        document.getElementById('merchantAddress').innerText = accounts[0];
+
         await updateBalance();
     } catch (error) {
         console.error('连接失败:', error);
@@ -35,46 +33,39 @@ async function connectWallet() {
     }
 }
 
-// ========== 加载合约 ==========
-async function loadContract() {
-    try {
-        const response = await fetch('./abi.json');
-        const abi = await response.json();
-        contract = new web3.eth.Contract(abi, contractAddress);
-    } catch (error) {
-        console.warn('ABI 未加载，等待成员3提供 abi.json');
-    }
-}
-
-// ========== 更新余额 ==========
+// ========== 更新 ETH 余额 ==========
 async function updateBalance() {
     try {
-        if (!contract) return;
         const accounts = await web3.eth.getAccounts();
-        const balance = await contract.methods.balanceOf(accounts[0]).call();
-        document.getElementById('balance').innerText = `余额: ${balance} LYL`;
+        const balanceWei = await web3.eth.getBalance(accounts[0]);
+        const balanceEth = web3.utils.fromWei(balanceWei, 'ether');
+        document.getElementById('balance').innerText = `余额: ${parseFloat(balanceEth).toFixed(4)} ETH`;
     } catch (error) {
         console.error('查询余额失败:', error);
     }
 }
 
-// ========== 发放积分（reward） ==========
+// ========== 发放 ETH（商家 → 用户） ==========
 async function reward() {
     try {
         const to = document.getElementById('rewardAddress').value.trim();
         const amount = document.getElementById('rewardAmount').value.trim();
-        
+
         if (!to || !amount) {
             showStatus('请填写完整信息', 'error');
             return;
         }
-        
-        showStatus('发放积分中...', 'pending');
+
+        showStatus('交易处理中...', 'pending');
         const accounts = await web3.eth.getAccounts();
-        await contract.methods.reward(to, amount).send({ from: accounts[0] });
+        await web3.eth.sendTransaction({
+            from: accounts[0],
+            to: to,
+            value: web3.utils.toWei(amount, 'ether')
+        });
         await updateBalance();
-        showStatus(`成功向 ${to.substring(0, 6)}... 发放 ${amount} LYL`, 'success');
-        
+        showStatus(`成功向 ${to.substring(0, 6)}... 发放 ${amount} ETH`, 'success');
+
         document.getElementById('rewardAddress').value = '';
         document.getElementById('rewardAmount').value = '';
     } catch (error) {
@@ -83,32 +74,52 @@ async function reward() {
     }
 }
 
-// ========== 扣除积分（spend） ==========
-async function spend() {
+// ========== 扣款（用户 → 商家） ==========
+// 与智能合约扣积分不同，ETH 无法从他人钱包直接扣款。
+// 此处生成扣款请求信息，用户需在用户端（index.html）连接钱包后向商家转账。
+async function charge() {
     try {
-        const from = document.getElementById('spendAddress').value.trim();
-        const amount = document.getElementById('spendAmount').value.trim();
-        
-        if (!from || !amount) {
+        if (!web3) {
+            showStatus('请先连接 MetaMask', 'error');
+            return;
+        }
+
+        const userAddr = document.getElementById('chargeAddress').value.trim();
+        const amount = document.getElementById('chargeAmount').value.trim();
+
+        if (!userAddr || !amount) {
             showStatus('请填写完整信息', 'error');
             return;
         }
-        
-        showStatus('扣除积分中...', 'pending');
+
         const accounts = await web3.eth.getAccounts();
-        await contract.methods.spend(from, amount).send({ from: accounts[0] });
-        await updateBalance();
-        showStatus(`成功从 ${from.substring(0, 6)}... 扣除 ${amount} LYL`, 'success');
-        
-        document.getElementById('spendAddress').value = '';
-        document.getElementById('spendAmount').value = '';
+        if (!accounts || accounts.length === 0) {
+            showStatus('请先连接 MetaMask', 'error');
+            return;
+        }
+
+        const merchantAddr = accounts[0];
+        const chargeInfo = document.getElementById('chargeInfo');
+
+        chargeInfo.innerHTML = '\n' +
+            '            <p><strong>扣款请求已生成</strong></p>\n' +
+            '            <p>用户地址: ' + userAddr + '</p>\n' +
+            '            <p>商家地址: ' + merchantAddr + '</p>\n' +
+            '            <p>金额: ' + amount + ' ETH</p>\n' +
+            '            <p style="color:#856404;margin-top:8px;">请用户在 <strong>用户端 (index.html)</strong> 连接钱包后，向商家地址发送 ' + amount + ' ETH</p>\n' +
+            '        ';
+        chargeInfo.style.display = 'block';
+        showStatus('已生成扣款请求', 'success');
+
+        document.getElementById('chargeAddress').value = '';
+        document.getElementById('chargeAmount').value = '';
     } catch (error) {
-        console.error('扣除失败:', error);
-        showStatus('扣除失败: ' + error.message, 'error');
+        console.error('扣款失败:', error);
+        showStatus('扣款失败: ' + error.message, 'error');
     }
 }
 
 // ========== 事件绑定 ==========
 document.getElementById('connectBtn').addEventListener('click', connectWallet);
 document.getElementById('rewardBtn').addEventListener('click', reward);
-document.getElementById('spendBtn').addEventListener('click', spend);
+document.getElementById('chargeBtn').addEventListener('click', charge);
