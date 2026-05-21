@@ -1,125 +1,237 @@
 // ========== 全局变量 ==========
 let web3;
+let contract;
+let currentAccount;
+
+const contractAddress = "0x8D36e0A3f6a23fCc12E206D735e71Ebd461d010d";
+const requiredChainId = "0x539"; // 1337
 
 // ========== 显示状态信息 ==========
 function showStatus(message, type) {
-    const statusDiv = document.getElementById('status');
+    const statusDiv = document.getElementById("status");
     statusDiv.innerText = message;
     statusDiv.className = type;
+    statusDiv.style.display = "block";
+
     setTimeout(() => {
-        statusDiv.style.display = 'none';
+        statusDiv.style.display = "none";
     }, 3000);
+}
+
+// ========== 校验网络 ==========
+async function checkNetwork() {
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+
+    if (chainId !== requiredChainId) {
+        showStatus("请切换到 Ganache Local 网络，Chain ID 必须是 1337", "error");
+        throw new Error("Wrong network");
+    }
+}
+
+// ========== 加载合约 ==========
+async function loadContract() {
+    const response = await fetch("abi.json");
+    const abi = await response.json();
+
+    contract = new web3.eth.Contract(abi, contractAddress);
+
+    const name = await contract.methods.name().call();
+    const symbol = await contract.methods.symbol().call();
+    const decimals = await contract.methods.decimals().call();
+
+    document.getElementById("tokenInfo").innerText =
+        `代币: ${name} (${symbol}), 小数位: ${decimals}`;
 }
 
 // ========== 连接钱包 ==========
 async function connectWallet() {
     try {
         if (!window.ethereum) {
-            showStatus('请先安装 MetaMask 插件！', 'error');
+            showStatus("请先安装 MetaMask 插件！", "error");
             return;
         }
+
         web3 = new Web3(window.ethereum);
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+        await checkNetwork();
 
         const accounts = await web3.eth.getAccounts();
-        document.getElementById('account').innerText =
-            `账户: ${accounts[0].substring(0, 6)}...${accounts[0].substring(38)}`;
-        document.getElementById('merchantAddress').innerText = accounts[0];
+        currentAccount = accounts[0];
 
-        await updateBalance();
+        document.getElementById("account").innerText =
+            `账户: ${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
+
+        await loadContract();
+        await updateMerchantInfo();
+
+        showStatus("钱包连接成功", "success");
     } catch (error) {
-        console.error('连接失败:', error);
-        showStatus('连接钱包失败: ' + error.message, 'error');
+        console.error("连接失败:", error);
+        showStatus("连接钱包失败: " + error.message, "error");
     }
 }
 
-// ========== 更新 ETH 余额 ==========
-async function updateBalance() {
+// ========== 更新商家信息 ==========
+async function updateMerchantInfo() {
     try {
-        const accounts = await web3.eth.getAccounts();
-        const balanceWei = await web3.eth.getBalance(accounts[0]);
-        const balanceEth = web3.utils.fromWei(balanceWei, 'ether');
-        document.getElementById('balance').innerText = `余额: ${parseFloat(balanceEth).toFixed(4)} ETH`;
+        if (!contract || !currentAccount) return;
+
+        const symbol = await contract.methods.symbol().call();
+
+        const isMerchant = await contract.methods.merchants(currentAccount).call();
+
+        const tokenBalanceRaw = await contract.methods.balanceOf(currentAccount).call();
+        const tokenBalance = web3.utils.fromWei(tokenBalanceRaw, "ether");
+
+        const ethBalanceWei = await web3.eth.getBalance(currentAccount);
+        const ethBalance = web3.utils.fromWei(ethBalanceWei, "ether");
+
+        document.getElementById("merchantStatus").innerText =
+            isMerchant ? "商家状态: 是商家，可以发放/扣除积分" : "商家状态: 不是商家，不能调用 reward/spend";
+
+        document.getElementById("balance").innerText =
+            `LYL 余额: ${tokenBalance} ${symbol}`;
+
+        document.getElementById("ethBalance").innerText =
+            `ETH 余额: ${parseFloat(ethBalance).toFixed(4)} ETH`;
     } catch (error) {
-        console.error('查询余额失败:', error);
+        console.error("更新商家信息失败:", error);
+        showStatus("更新商家信息失败: " + error.message, "error");
     }
 }
 
-// ========== 发放 ETH（商家 → 用户） ==========
+// ========== 发放 LYL ==========
 async function reward() {
     try {
-        const to = document.getElementById('rewardAddress').value.trim();
-        const amount = document.getElementById('rewardAmount').value.trim();
-
-        if (!to || !amount) {
-            showStatus('请填写完整信息', 'error');
+        if (!contract || !currentAccount) {
+            showStatus("请先连接钱包", "error");
             return;
         }
 
-        showStatus('交易处理中...', 'pending');
-        const accounts = await web3.eth.getAccounts();
-        await web3.eth.sendTransaction({
-            from: accounts[0],
-            to: to,
-            value: web3.utils.toWei(amount, 'ether')
-        });
-        await updateBalance();
-        showStatus(`成功向 ${to.substring(0, 6)}... 发放 ${amount} ETH`, 'success');
+        const user = document.getElementById("rewardAddress").value.trim();
+        const amount = document.getElementById("rewardAmount").value.trim();
 
-        document.getElementById('rewardAddress').value = '';
-        document.getElementById('rewardAmount').value = '';
+        if (!user || !amount) {
+            showStatus("请填写完整信息", "error");
+            return;
+        }
+
+        if (!web3.utils.isAddress(user)) {
+            showStatus("用户地址格式错误", "error");
+            return;
+        }
+
+        if (Number(amount) <= 0) {
+            showStatus("发放数量必须大于 0", "error");
+            return;
+        }
+
+        const amountRaw = web3.utils.toWei(amount, "ether");
+
+        showStatus("积分发放处理中...", "pending");
+
+        await contract.methods.reward(user, amountRaw).send({
+            from: currentAccount
+        });
+
+        await updateMerchantInfo();
+
+        showStatus("LYL 积分发放成功！", "success");
+
+        document.getElementById("rewardAddress").value = "";
+        document.getElementById("rewardAmount").value = "";
     } catch (error) {
-        console.error('发放失败:', error);
-        showStatus('发放失败: ' + error.message, 'error');
+        console.error("发放失败:", error);
+        showStatus("发放失败: " + (error.message || "未知错误"), "error");
     }
 }
 
-// ========== 扣款（用户 → 商家） ==========
-// 与智能合约扣积分不同，ETH 无法从他人钱包直接扣款。
-// 此处生成扣款请求信息，用户需在用户端（index.html）连接钱包后向商家转账。
-async function charge() {
+// ========== 扣除 LYL ==========
+async function spend() {
     try {
-        if (!web3) {
-            showStatus('请先连接 MetaMask', 'error');
+        if (!contract || !currentAccount) {
+            showStatus("请先连接钱包", "error");
             return;
         }
 
-        const userAddr = document.getElementById('chargeAddress').value.trim();
-        const amount = document.getElementById('chargeAmount').value.trim();
+        const user = document.getElementById("spendAddress").value.trim();
+        const amount = document.getElementById("spendAmount").value.trim();
 
-        if (!userAddr || !amount) {
-            showStatus('请填写完整信息', 'error');
+        if (!user || !amount) {
+            showStatus("请填写完整信息", "error");
             return;
         }
 
-        const accounts = await web3.eth.getAccounts();
-        if (!accounts || accounts.length === 0) {
-            showStatus('请先连接 MetaMask', 'error');
+        if (!web3.utils.isAddress(user)) {
+            showStatus("用户地址格式错误", "error");
             return;
         }
 
-        const merchantAddr = accounts[0];
-        const chargeInfo = document.getElementById('chargeInfo');
+        if (Number(amount) <= 0) {
+            showStatus("扣除数量必须大于 0", "error");
+            return;
+        }
 
-        chargeInfo.innerHTML = '\n' +
-            '            <p><strong>扣款请求已生成</strong></p>\n' +
-            '            <p>用户地址: ' + userAddr + '</p>\n' +
-            '            <p>商家地址: ' + merchantAddr + '</p>\n' +
-            '            <p>金额: ' + amount + ' ETH</p>\n' +
-            '            <p style="color:#856404;margin-top:8px;">请用户在 <strong>用户端 (index.html)</strong> 连接钱包后，向商家地址发送 ' + amount + ' ETH</p>\n' +
-            '        ';
-        chargeInfo.style.display = 'block';
-        showStatus('已生成扣款请求', 'success');
+        const amountRaw = web3.utils.toWei(amount, "ether");
 
-        document.getElementById('chargeAddress').value = '';
-        document.getElementById('chargeAmount').value = '';
+        showStatus("积分扣除处理中...", "pending");
+
+        await contract.methods.spend(user, amountRaw).send({
+            from: currentAccount
+        });
+
+        await updateMerchantInfo();
+
+        showStatus("LYL 积分扣除成功！", "success");
+
+        document.getElementById("spendAddress").value = "";
+        document.getElementById("spendAmount").value = "";
     } catch (error) {
-        console.error('扣款失败:', error);
-        showStatus('扣款失败: ' + error.message, 'error');
+        console.error("扣除失败:", error);
+        showStatus("扣除失败: " + (error.message || "未知错误"), "error");
+    }
+}
+
+// ========== 查询任意地址余额 ==========
+async function queryBalance() {
+    try {
+        if (!contract) {
+            showStatus("请先连接钱包", "error");
+            return;
+        }
+
+        const address = document.getElementById("queryAddress").value.trim();
+
+        if (!address) {
+            showStatus("请输入查询地址", "error");
+            return;
+        }
+
+        if (!web3.utils.isAddress(address)) {
+            showStatus("查询地址格式错误", "error");
+            return;
+        }
+
+        const symbol = await contract.methods.symbol().call();
+        const balanceRaw = await contract.methods.balanceOf(address).call();
+        const balance = web3.utils.fromWei(balanceRaw, "ether");
+
+        document.getElementById("queryResult").innerText =
+            `查询结果: ${balance} ${symbol}`;
+    } catch (error) {
+        console.error("查询失败:", error);
+        showStatus("查询失败: " + error.message, "error");
     }
 }
 
 // ========== 事件绑定 ==========
-document.getElementById('connectBtn').addEventListener('click', connectWallet);
-document.getElementById('rewardBtn').addEventListener('click', reward);
-document.getElementById('chargeBtn').addEventListener('click', charge);
+document.getElementById("connectBtn").addEventListener("click", connectWallet);
+document.getElementById("rewardBtn").addEventListener("click", reward);
+document.getElementById("spendBtn").addEventListener("click", spend);
+document.getElementById("queryBtn").addEventListener("click", queryBalance);
+
+if (window.ethereum) {
+    window.ethereum.on("accountsChanged", () => location.reload());
+    window.ethereum.on("chainChanged", () => location.reload());
+}
