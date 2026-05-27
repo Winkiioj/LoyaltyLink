@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoyaltyLink - 管理端</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>LoyaltyLink 管理端</h1>
+
+        <button id="connectBtn">连接 MetaMask</button>
+        <button id="refreshBtn">刷新商家白名单</button>
+
+        <div id="account">账户: 未连接</div>
+        <div id="ownerInfo">Owner: 未加载</div>
+        <div id="adminStatus">管理员状态: 未查询</div>
+        <div id="tokenInfo">代币: 未加载</div>
+        <div id="ethBalance">ETH 余额: 0</div>
+
+        <hr>
+
+        <h3>添加商家</h3>
+        <input type="text" id="addMerchantAddress" placeholder="商家地址 (0x...)">
+        <button id="addMerchantBtn">添加商家</button>
+
+        <hr>
+
+        <h3>移除商家</h3>
+        <input type="text" id="removeMerchantAddress" placeholder="商家地址 (0x...)">
+        <button id="removeMerchantBtn">移除商家</button>
+
+        <hr>
+
+        <h3>查询指定地址是否为商家</h3>
+        <input type="text" id="checkMerchantAddress" placeholder="查询地址 (0x...)">
+        <button id="checkMerchantBtn">查询商家状态</button>
+        <div id="checkMerchantResult">查询结果: -</div>
+
+        <hr>
+
+        <h3>当前商家白名单</h3>
+        <div id="merchantList">暂无数据</div>
+
+        <div id="status"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
