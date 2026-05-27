@@ -3,7 +3,7 @@ let web3;
 let contract;
 let currentAccount;
 
-const contractAddress = "0x8D36e0A3f6a23fCc12E206D735e71Ebd461d010d";
+const contractAddress = "0x51566FbC6251682a434E57714Cb14e1D6b69B0df";
 const requiredChainId = "0x539"; // 1337
 
 // ========== 显示状态信息 ==========
@@ -13,27 +13,73 @@ function showStatus(message, type) {
     statusDiv.className = type;
     statusDiv.style.display = "block";
 
-    setTimeout(() => {
-        statusDiv.style.display = "none";
-    }, 3000);
+    // 错误消息不自动消失，方便排查
+    if (type !== "error") {
+        setTimeout(() => {
+            statusDiv.style.display = "none";
+        }, 3000);
+    }
 }
 
-// ========== 校验网络 ==========
+// ========== 校验并切换网络 ==========
 async function checkNetwork() {
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
 
     if (chainId !== requiredChainId) {
-        showStatus("请切换到 Ganache Local 网络，Chain ID 必须是 1337", "error");
-        throw new Error("Wrong network");
+        // 尝试自动切换到 Ganache 网络
+        try {
+            await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: requiredChainId }]
+            });
+        } catch (switchError) {
+            // 网络不存在则添加
+            if (switchError.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: "wallet_addEthereumChain",
+                        params: [{
+                            chainId: requiredChainId,
+                            chainName: "Ganache Local",
+                            rpcUrls: ["http://127.0.0.1:7545"],
+                            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }
+                        }]
+                    });
+                } catch (addError) {
+                    throw new Error("无法添加 Ganache 网络: " + addError.message);
+                }
+            } else {
+                throw new Error("切换网络被拒绝，请在 MetaMask 中手动切换到 Ganache Local (1337)");
+            }
+        }
     }
 }
 
 // ========== 加载合约 ==========
 async function loadContract() {
-    const response = await fetch("abi.json");
-    const abi = await response.json();
+    let response;
+    try {
+        response = await fetch("abi.json");
+    } catch (e) {
+        throw new Error("无法加载 abi.json，请确认前端服务在 frontend/ 目录启动");
+    }
 
+    if (!response.ok) {
+        throw new Error(`ABI 加载失败 (HTTP ${response.status})`);
+    }
+
+    const abi = await response.json();
     contract = new web3.eth.Contract(abi, contractAddress);
+
+    try {
+        const code = await web3.eth.getCode(contractAddress);
+        if (code === "0x" || code === "0x0") {
+            throw new Error(`合约未部署到地址 ${contractAddress}，请重新运行部署脚本`);
+        }
+    } catch (e) {
+        if (e.message.includes("合约未部署")) throw e;
+        throw new Error(`无法在 ${contractAddress} 找到合约，请确认 Ganache 已启动且合约已部署`);
+    }
 
     const name = await contract.methods.name().call();
     const symbol = await contract.methods.symbol().call();
@@ -51,6 +97,8 @@ async function connectWallet() {
             return;
         }
 
+        showStatus("正在连接钱包...", "pending");
+
         web3 = new Web3(window.ethereum);
 
         await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -62,7 +110,9 @@ async function connectWallet() {
         document.getElementById("account").innerText =
             `账户: ${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
 
+        showStatus("正在加载合约...", "pending");
         await loadContract();
+
         await updateBalance();
 
         showStatus("钱包连接成功", "success");
