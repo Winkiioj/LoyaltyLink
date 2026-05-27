@@ -3,7 +3,7 @@ let web3;
 let contract;
 let currentAccount;
 
-const contractAddress = "0x8D36e0A3f6a23fCc12E206D735e71Ebd461d010d";
+const contractAddress = "0x51566FbC6251682a434E57714Cb14e1D6b69B0df";
 const requiredChainId = "0x539"; // 1337
 
 // ========== 显示状态信息 ==========
@@ -13,27 +13,75 @@ function showStatus(message, type) {
     statusDiv.className = type;
     statusDiv.style.display = "block";
 
-    setTimeout(() => {
-        statusDiv.style.display = "none";
-    }, 3000);
+    // 错误消息不自动消失，方便排查
+    if (type !== "error") {
+        setTimeout(() => {
+            statusDiv.style.display = "none";
+        }, 3000);
+    }
 }
 
-// ========== 校验网络 ==========
+// ========== 校验并切换网络 ==========
 async function checkNetwork() {
     const chainId = await window.ethereum.request({ method: "eth_chainId" });
 
     if (chainId !== requiredChainId) {
-        showStatus("请切换到 Ganache Local 网络，Chain ID 必须是 1337", "error");
-        throw new Error("Wrong network");
+        // 尝试自动切换到 Ganache 网络
+        try {
+            await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: requiredChainId }]
+            });
+        } catch (switchError) {
+            // 网络不存在则添加
+            if (switchError.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: "wallet_addEthereumChain",
+                        params: [{
+                            chainId: requiredChainId,
+                            chainName: "Ganache Local",
+                            rpcUrls: ["http://127.0.0.1:7545"],
+                            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }
+                        }]
+                    });
+                } catch (addError) {
+                    throw new Error("无法添加 Ganache 网络: " + addError.message);
+                }
+            } else {
+                throw new Error("切换网络被拒绝，请在 MetaMask 中手动切换到 Ganache Local (1337)");
+            }
+        }
     }
 }
 
 // ========== 加载合约 ==========
 async function loadContract() {
-    const response = await fetch("abi.json");
-    const abi = await response.json();
+    let response;
+    try {
+        response = await fetch("abi.json");
+    } catch (e) {
+        throw new Error("无法加载 abi.json，请确认前端服务在 frontend/ 目录启动");
+    }
 
+    if (!response.ok) {
+        throw new Error(`ABI 加载失败 (HTTP ${response.status})`);
+    }
+
+    const abi = await response.json();
     contract = new web3.eth.Contract(abi, contractAddress);
+
+    // 验证合约是否存在
+    try {
+        const code = await web3.eth.getCode(contractAddress);
+        if (code === "0x" || code === "0x0") {
+            throw new Error(`合约未部署到地址 ${contractAddress}，请重新运行部署脚本`);
+        }
+    } catch (e) {
+        if (e.message.includes("合约未部署")) throw e;
+        // getCode 本身失败也意味着合约不存在
+        throw new Error(`无法在 ${contractAddress} 找到合约，请确认 Ganache 已启动且合约已部署`);
+    }
 
     const name = await contract.methods.name().call();
     const symbol = await contract.methods.symbol().call();
@@ -51,6 +99,8 @@ async function connectWallet() {
             return;
         }
 
+        showStatus("正在连接钱包...", "pending");
+
         web3 = new Web3(window.ethereum);
 
         await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -62,14 +112,19 @@ async function connectWallet() {
         document.getElementById("account").innerText =
             `账户: ${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
 
+        showStatus("正在加载合约...", "pending");
         await loadContract();
+
+        showStatus("正在获取管理员信息...", "pending");
         await updateAdminInfo();
+
+        showStatus("正在加载商家白名单...", "pending");
         await loadMerchantList();
 
         showStatus("钱包连接成功", "success");
     } catch (error) {
         console.error("连接失败:", error);
-        showStatus("连接钱包失败: " + error.message, "error");
+        showStatus("连接失败: " + (error.message || "未知错误"), "error");
     }
 }
 
@@ -203,7 +258,7 @@ async function checkMerchant() {
 }
 
 // ========== 加载当前商家白名单 ==========
-// 合约没有商家数组，所以通过 MerchantAdded / MerchantRemoved 事件还原当前白名单
+// 按时间顺序重放 Add/Remove 事件，保证最终状态正确
 async function loadMerchantList() {
     try {
         if (!contract) return;
@@ -218,16 +273,24 @@ async function loadMerchantList() {
             toBlock: "latest"
         });
 
+        // 合并并按区块号+交易索引排序，确保按时间顺序重放
+        const allEvents = [
+            ...addedEvents.map(e => ({ ...e, _type: "add" })),
+            ...removedEvents.map(e => ({ ...e, _type: "remove" }))
+        ].sort((a, b) => {
+            if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
+            return a.transactionIndex - b.transactionIndex;
+        });
+
         const merchantMap = new Map();
 
-        for (const event of addedEvents) {
+        for (const event of allEvents) {
             const merchant = event.returnValues.merchant;
-            merchantMap.set(merchant.toLowerCase(), merchant);
-        }
-
-        for (const event of removedEvents) {
-            const merchant = event.returnValues.merchant;
-            merchantMap.delete(merchant.toLowerCase());
+            if (event._type === "add") {
+                merchantMap.set(merchant.toLowerCase(), merchant);
+            } else {
+                merchantMap.delete(merchant.toLowerCase());
+            }
         }
 
         const listDiv = document.getElementById("merchantList");
