@@ -175,6 +175,50 @@ describe("LoyaltyToken", function () {
         });
     });
 
+    describe("积分兑换（redeemTokens）", function () {
+        it("用户可以主动销毁自己的积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            await expect(token.connect(user1).redeemTokens(30))
+                .to.emit(token, "TokensRedeemed")
+                .withArgs(user1.address, 30);
+            expect(await token.balanceOf(user1.address)).to.equal(70);
+            expect(await token.totalSupply()).to.equal(70);
+        });
+
+        it("任何人（包括非商家）都可以销毁自己的积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 50);
+            // user1 不是商家，但可以销毁自己的积分
+            await token.connect(user1).redeemTokens(50);
+            expect(await token.balanceOf(user1.address)).to.equal(0);
+        });
+
+        it("余额不足时销毁应回退", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 10);
+            await expect(
+                token.connect(user1).redeemTokens(20)
+            ).to.be.revertedWith("LoyaltyToken: Insufficient balance");
+        });
+
+        it("销毁 0 积分也可以（边界情况）", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 10);
+            await token.connect(user1).redeemTokens(0);
+            expect(await token.balanceOf(user1.address)).to.equal(10);
+        });
+
+        it("暂停后不能销毁积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            await token.pause();
+            await expect(
+                token.connect(user1).redeemTokens(10)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+    });
+
     describe("ERC-20 标准功能", function () {
         it("用户间可以转账积分", async function () {
             await token.addMerchant(merchant1.address);
@@ -238,6 +282,90 @@ describe("LoyaltyToken", function () {
         });
     });
 
+    describe("暂停与恢复", function () {
+        it("Owner 可以暂停合约", async function () {
+            await expect(token.pause())
+                .to.emit(token, "ContractPaused")
+                .withArgs(owner.address);
+            expect(await token.paused()).to.be.true;
+        });
+
+        it("Owner 可以恢复合约", async function () {
+            await token.pause();
+            await expect(token.unpause())
+                .to.emit(token, "ContractUnpaused")
+                .withArgs(owner.address);
+            expect(await token.paused()).to.be.false;
+        });
+
+        it("非 Owner 不能暂停合约", async function () {
+            await expect(
+                token.connect(user1).pause()
+            ).to.be.revertedWithCustomError(token, "OwnableUnauthorizedAccount");
+        });
+
+        it("非 Owner 不能恢复合约", async function () {
+            await token.pause();
+            await expect(
+                token.connect(user1).unpause()
+            ).to.be.revertedWithCustomError(token, "OwnableUnauthorizedAccount");
+        });
+
+        it("暂停后商家不能发放积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.pause();
+            await expect(
+                token.connect(merchant1).reward(user1.address, 100)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+
+        it("暂停后商家不能扣除积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            await token.pause();
+            await expect(
+                token.connect(merchant1).spend(user1.address, 50)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+
+        it("暂停后用户不能转账", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            await token.pause();
+            await expect(
+                token.connect(user1).transfer(user2.address, 50)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+
+        it("暂停后不能 transferFrom", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            await token.connect(user1).approve(user2.address, 50);
+            await token.pause();
+            await expect(
+                token.connect(user2).transferFrom(user1.address, user2.address, 50)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+
+        it("恢复后商家可以正常发放积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.pause();
+            await token.unpause();
+            await token.connect(merchant1).reward(user1.address, 100);
+            expect(await token.balanceOf(user1.address)).to.equal(100);
+        });
+
+        it("恢复后用户可以正常转账", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            await token.pause();
+            await token.unpause();
+            await token.connect(user1).transfer(user2.address, 50);
+            expect(await token.balanceOf(user1.address)).to.equal(50);
+            expect(await token.balanceOf(user2.address)).to.equal(50);
+        });
+    });
+
     describe("事件验证", function () {
         it("MerchantAdded 事件应正确触发", async function () {
             await expect(token.addMerchant(merchant1.address))
@@ -265,6 +393,19 @@ describe("LoyaltyToken", function () {
             await expect(token.connect(merchant1).spend(user1.address, 50))
                 .to.emit(token, "Spend")
                 .withArgs(merchant1.address, user1.address, 50);
+        });
+
+        it("ContractPaused 事件应正确触发", async function () {
+            await expect(token.pause())
+                .to.emit(token, "ContractPaused")
+                .withArgs(owner.address);
+        });
+
+        it("ContractUnpaused 事件应正确触发", async function () {
+            await token.pause();
+            await expect(token.unpause())
+                .to.emit(token, "ContractUnpaused")
+                .withArgs(owner.address);
         });
     });
 });

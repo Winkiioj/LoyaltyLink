@@ -6,7 +6,13 @@
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
     "deploy": "npx hardhat ignition deploy ./ignition/modules/LoyaltyToken.ts --network ganache",
-    "deploy:full": "node scripts/deploy.js"
+    "deploy:full": "node scripts/deploy.js",
+    "deploy:direct": "npx hardhat run scripts/deploy-direct.js --network ganache",
+    "init": "node scripts/init-demo-data.js",
+    "start": "bash scripts/start-all.sh",
+    "start:ps": "bash scripts/start-all.sh",
+    "start:sh": "bash scripts/start-all.sh",
+    "start:all": "bash scripts/start-all.sh"
   },
   "type": "module",
   "keywords": [],

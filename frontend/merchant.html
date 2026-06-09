@@ -6,7 +6,18 @@
     <title>LoyaltyLink - 商家端</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-page="merchant">
+    <header class="nav-bar">
+      <div class="nav-title">LoyaltyLink</div>
+      <nav class="nav-links">
+        <a href="index.html" class="nav-link" data-page="index">首页</a>
+        <a href="shop.html" class="nav-link" data-page="shop">商城</a>
+        <a href="redeem.html" class="nav-link" data-page="redeem">兑换</a>
+        <a href="merchant.html" class="nav-link" data-page="merchant">商家</a>
+        <a href="history.html" class="nav-link" data-page="history">记录</a>
+        <a href="admin.html" class="nav-link" data-page="admin">管理</a>
+      </nav>
+    </header>
     <div class="container">
         <h1>LoyaltyLink 商家端</h1>
 
@@ -18,31 +29,59 @@
         <div id="balance">LYL 余额: 0</div>
         <div id="ethBalance">ETH 余额: 0</div>
 
-        <hr>
+        <div id="status"></div>
 
-        <h3>发放 LYL 积分</h3>
-        <input type="text" id="rewardAddress" placeholder="用户地址 (0x...)">
-        <input type="number" id="rewardAmount" placeholder="LYL 数量" step="1" min="1">
-        <button id="rewardBtn">发放 LYL</button>
+        <!-- 待处理商城订单 -->
+        <section class="section">
+            <h2>待处理订单（商城）</h2>
+            <p style="color: #888; font-size: 0.85rem; margin-bottom: 8px;">
+                用户在积分商城下单后在此显示。确认订单将调用 reward() 向用户发放对应积分。
+            </p>
+            <div id="pending-orders">
+                <p class="hint">暂无待处理订单</p>
+            </div>
+        </section>
 
-        <hr>
+        <!-- 兑换请求记录 -->
+        <section class="section">
+            <h2>兑换请求</h2>
+            <p style="color: #888; font-size: 0.85rem; margin-bottom: 8px;">
+                用户通过积分兑换的奖品记录。链上 spend() 已执行，此处仅供商家查看。
+            </p>
+            <div id="redemption-requests">
+                <p class="hint">暂无兑换请求</p>
+            </div>
+        </section>
 
-        <h3>扣除 LYL 积分</h3>
-        <input type="text" id="spendAddress" placeholder="用户地址 (0x...)">
-        <input type="number" id="spendAmount" placeholder="LYL 数量" step="1" min="1">
-        <button id="spendBtn">扣除 LYL</button>
+        <!-- 手动操作 -->
+        <section class="section">
+            <h2>手动操作</h2>
 
-        <hr>
+            <h3>发放 LYL 积分</h3>
+            <input type="text" id="rewardAddress" placeholder="用户地址 (0x...)"><span class="field-error"></span>
+            <input type="number" id="rewardAmount" placeholder="LYL 数量" step="1" min="1"><span class="field-error"></span>
+            <button id="rewardBtn">发放 LYL</button>
 
-        <h3>查询任意地址积分余额</h3>
-        <input type="text" id="queryAddress" placeholder="查询地址 (0x...)">
-        <button id="queryBtn">查询余额</button>
-        <div id="queryResult">查询结果: -</div>
+            <hr>
+
+            <h3>扣除 LYL 积分</h3>
+            <input type="text" id="spendAddress" placeholder="用户地址 (0x...)"><span class="field-error"></span>
+            <input type="number" id="spendAmount" placeholder="LYL 数量" step="1" min="1"><span class="field-error"></span>
+            <button id="spendBtn">扣除 LYL</button>
+
+            <hr>
+
+            <h3>查询任意地址积分余额</h3>
+            <input type="text" id="queryAddress" placeholder="查询地址 (0x...)"><span class="field-error"></span>
+            <button id="queryBtn">查询余额</button>
+            <div id="queryResult">查询结果: -</div>
+        </section>
 
         <div id="status"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <script src="js/common.js"></script>
     <script src="merchant.js"></script>
 </body>
 </html>

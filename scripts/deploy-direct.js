@@ -3,7 +3,7 @@
  * 用法: npx hardhat run scripts/deploy-direct.js --network ganache
  */
 import hre from "hardhat";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -42,9 +42,10 @@ async function main() {
   console.log(`总供应量: ${totalSupply}`);
   console.log(`合约所有者: ${owner}`);
 
-  // 更新前端文件
+  // 更新前端文件（所有硬编码合约地址）
   console.log("\n3. 更新前端代码...");
   const frontendFiles = [
+    join(rootDir, "frontend", "js", "common.js"),
     join(rootDir, "frontend", "app.js"),
     join(rootDir, "frontend", "merchant.js"),
     join(rootDir, "frontend", "admin.js"),
@@ -58,6 +59,17 @@ async function main() {
     );
     writeFileSync(file, content, "utf8");
     console.log(`   已更新 ${file}`);
+  }
+
+  // 同步 ABI 到前端目录
+  const artifactPath = join(
+    rootDir, "artifacts", "contracts", "LoyaltyToken.sol", "LoyaltyToken.json"
+  );
+  if (existsSync(artifactPath)) {
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
+    const abiPath = join(rootDir, "frontend", "abi.json");
+    writeFileSync(abiPath, JSON.stringify(artifact.abi, null, 2));
+    console.log(`   已同步 ABI 到 frontend/abi.json (${artifact.abi.length} entries)`);
   }
 
   console.log("\n=== 部署完成！===");

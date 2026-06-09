@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoyaltyLink - 用户端</title>
+    <title>交易记录 - LoyaltyLink</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body data-page="index">
+<body data-page="history">
     <header class="nav-bar">
       <div class="nav-title">LoyaltyLink</div>
       <nav class="nav-links">
@@ -18,8 +18,9 @@
         <a href="admin.html" class="nav-link" data-page="admin">管理</a>
       </nav>
     </header>
+
     <div class="container">
-        <h1>LoyaltyLink 用户端</h1>
+        <h1>交易记录</h1>
 
         <button id="connectBtn">连接 MetaMask</button>
 
@@ -28,18 +29,31 @@
         <div id="balance">LYL 余额: 0</div>
         <div id="ethBalance">ETH 余额: 0</div>
 
-        <hr>
-
-        <h3>转账 LYL 积分</h3>
-        <input type="text" id="toAddress" placeholder="接收地址 (0x...)"><span class="field-error"></span>
-        <input type="number" id="transferAmount" placeholder="LYL 数量" step="1" min="1"><span class="field-error"></span>
-        <button id="transferBtn">转账 LYL</button>
-
         <div id="status"></div>
+
+        <section class="section">
+            <div class="filter-bar">
+                <select id="filter-type">
+                    <option value="all">全部类型</option>
+                    <option value="reward">发放积分</option>
+                    <option value="transfer">转账</option>
+                    <option value="admin">管理操作</option>
+                    <option value="order">商城订单</option>
+                    <option value="redemption">积分兑换</option>
+                </select>
+                <button id="btn-refresh">刷新</button>
+            </div>
+            <p style="color: #888; font-size: 0.85rem; margin-bottom: 12px;">
+                显示与当前账户相关的链上交易和链下订单记录。点击交易哈希可查看详情。
+            </p>
+            <div id="history-list">
+                <p class="hint">请先连接钱包后刷新</p>
+            </div>
+        </section>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
     <script src="js/common.js"></script>
-    <script src="app.js"></script>
+    <script src="js/history.js"></script>
 </body>
 </html>
