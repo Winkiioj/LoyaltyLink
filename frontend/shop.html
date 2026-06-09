@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoyaltyLink - 用户端</title>
+    <title>积分商城 - LoyaltyLink</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body data-page="index">
+<body data-page="shop">
     <header class="nav-bar">
       <div class="nav-title">LoyaltyLink</div>
       <nav class="nav-links">
@@ -18,8 +18,9 @@
         <a href="admin.html" class="nav-link" data-page="admin">管理</a>
       </nav>
     </header>
+
     <div class="container">
-        <h1>LoyaltyLink 用户端</h1>
+        <h1>联盟商家积分商城</h1>
 
         <button id="connectBtn">连接 MetaMask</button>
 
@@ -28,18 +29,28 @@
         <div id="balance">LYL 余额: 0</div>
         <div id="ethBalance">ETH 余额: 0</div>
 
-        <hr>
-
-        <h3>转账 LYL 积分</h3>
-        <input type="text" id="toAddress" placeholder="接收地址 (0x...)"><span class="field-error"></span>
-        <input type="number" id="transferAmount" placeholder="LYL 数量" step="1" min="1"><span class="field-error"></span>
-        <button id="transferBtn">转账 LYL</button>
-
         <div id="status"></div>
+
+        <section class="section">
+            <h2>商品列表</h2>
+            <p style="color: #888; font-size: 0.9rem; margin-bottom: 8px;">
+                浏览联盟商家商品，选择后下单。1 元消费 = 1 LYL 积分。订单提交后由商家确认并发放积分。
+            </p>
+            <div id="product-list" class="product-grid">
+                <!-- JS 动态填充 -->
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>我的订单</h2>
+            <div id="my-orders">
+                <p class="hint">暂无订单</p>
+            </div>
+        </section>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
     <script src="js/common.js"></script>
-    <script src="app.js"></script>
+    <script src="js/shop.js"></script>
 </body>
 </html>

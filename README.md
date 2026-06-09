@@ -7,50 +7,51 @@
 - **去中心化积分** — 积分作为 ERC-20 代币存储在链上，用户拥有完全自主权
 - **商家联盟管理** — 管理员可动态添加/移除联盟商家，无需重新部署合约
 - **积分发行与消费** — 商家通过 `reward` 铸币发放积分，通过 `spend` 销毁积分完成消费
+- **用户积分兑换** — 用户通过 `redeemTokens` 自主销毁积分兑换奖品
 - **用户自由转账** — 支持积分在任意地址间点对点转账
-- **权限分级** — 三级角色（管理员 / 商家 / 用户），OpenZeppelin Ownable + 自定义 modifier 控制
+- **权限分级** — 四级角色（管理员 / 商家 / 用户），OpenZeppelin Ownable + Pausable + 自定义 modifier 控制
+- **紧急控制** — 管理员可暂停/恢复合约，阻止异常操作
+- **前端角色门禁** — 非管理员无法进入管理后台，非商家无法进入商家后台
 
 ## 技术栈
 
 | 层级 | 组件 | 版本 |
 |:---|:---|:---|
-| 区块链网络 | Ganache (本地测试链) | 7.x |
+| 区块链网络 | Ganache GUI (本地测试链) | 2.7.1 |
 | 智能合约框架 | Hardhat | 3.x |
 | 合约语言 | Solidity | 0.8.20 |
 | 安全库 | OpenZeppelin Contracts | 5.x |
 | 前端 | 原生 HTML/CSS/JS + Web3.js | 1.8.0 |
 | 钱包 | MetaMask | 最新版 |
-| 测试 | Hardhat + Mocha + Chai + Ethers.js | — |
+| 测试 | Hardhat + Mocha + Chai + Ethers.js | 48 tests |
 
 ## 项目结构
 
 ```
 loyaltylink/
 ├── contracts/                 # 智能合约
-│   └── LoyaltyToken.sol       # ERC-20 积分代币（含商家权限）
+│   └── LoyaltyToken.sol       # ERC-20 积分代币（含商家权限、暂停控制、积分兑换）
 ├── test/
-│   └── LoyaltyToken.test.ts   # 单元测试（31 个用例）
-├── ignition/modules/
-│   └── LoyaltyToken.ts        # Hardhat Ignition 部署模块
+│   └── LoyaltyToken.test.ts   # 单元测试（48 个用例）
 ├── frontend/                  # 前端页面
 │   ├── index.html + app.js    # 用户端（余额查询、积分转账）
-│   ├── merchant.html + merchant.js  # 商户端（发放积分、扣除积分）
-│   ├── admin.html + admin.js  # 管理端（商家白名单管理）
+│   ├── shop.html + js/shop.js # 积分商城（商品浏览、下单）
+│   ├── redeem.html + js/redeem.js  # 积分兑换（兑换奖品）
+│   ├── merchant.html + merchant.js  # 商户端（发放/扣除积分、订单处理）
+│   ├── history.html + js/history.js # 交易记录（链上事件+链下记录）
+│   ├── admin.html + admin.js  # 管理端（商家白名单、暂停/恢复）
+│   ├── js/common.js           # 前端公共模块（钱包/合约/角色校验）
 │   ├── style.css              # 共用样式
-│   └── abi.json               # 合约 ABI
+│   └── abi.json               # 合约 ABI（部署时自动同步）
 ├── scripts/
 │   ├── deploy.js              # 一键部署（编译 + 部署 + 更新前端地址）
-│   ├── deploy-direct.js       # Hardhat 直接部署
-│   ├── deploy-ethers.js       # Ethers.js 直接部署
-│   └── demo.js                # CLI 演示工具
+│   ├── deploy-direct.js       # Hardhat 直接部署 + ABI 同步
+│   ├── demo.js                # CLI 演示工具（reward/spend/pause 等）
+│   ├── init-demo-data.js      # 演示数据初始化（幂等）
+│   ├── health-check.js        # 环境健康检查
+│   ├── start-all.sh           # 一键启动脚本（Bash）
+│   └── start-all.ps1          # 一键启动脚本（PowerShell）
 ├── docs/                      # 项目文档
-│   ├── 需求分析.md
-│   ├── 系统设计文档.md
-│   ├── 环境配置-已验证.md
-│   ├── 详细分工.md
-│   ├── 演示流程.md
-│   ├── 组员拉取运行指南.md
-│   └── CONTRIBUTING.md
 └── hardhat.config.ts
 ```
 
@@ -70,55 +71,33 @@ cd loyaltylink
 npm install
 ```
 
-### 2. 启动 Ganache
+### 2. 启动环境
 
 ```bash
-# 使用项目共用助记词（10 个账户各 100 ETH）
-npx ganache --port 7545 --chain.chainId 1337 \
-  --wallet.mnemonic "maid notable twist mutual dune speed come dolphin wet gaze scout sort"
+# 打开 Ganache GUI（端口 7545, Chain ID 1337, 上述助记词）
+# 然后运行一键启动脚本
+npm start
 ```
 
-### 3. 编译合约
+脚本自动完成：检查 → 编译 → 部署 → 初始化数据 → 启动前端。
 
-```bash
-npx hardhat compile
-```
-
-### 4. 运行测试
-
-```bash
-npx hardhat test
-```
-
-### 5. 部署合约
-
-```bash
-npm run deploy:full
-# 或：npx hardhat ignition deploy ./ignition/modules/LoyaltyToken.ts --network ganache
-```
-
-部署成功后，`frontend/app.js`、`frontend/merchant.js`、`frontend/admin.js` 中的合约地址会自动更新。
-
-### 6. 启动前端
-
-```bash
-npx http-server frontend/ -p 3000 -c-1
-```
-
-### 7. 配置 MetaMask
+### 3. 配置 MetaMask
 
 1. 添加自定义网络：RPC `http://127.0.0.1:7545`，Chain ID `1337`
-2. 导入 Ganache 账户私钥（至少导入 Account 0、1、2 分别作为管理员、商家、用户）
+2. 导入 Ganache 账户私钥：Account 0/1/2/4（管理员/商家/用户A/用户B）
 
-### 8. 开始使用
+### 4. 开始演示
 
-| 页面 | 地址 | 角色 |
+| 页面 | 地址 | 角色限制 |
 |:---|:---|:---|
-| 管理端 | `http://localhost:3000/admin.html` | 管理员（Account 0） |
-| 商户端 | `http://localhost:3000/merchant.html` | 商家（Account 1） |
-| 用户端 | `http://localhost:3000/index.html` | 用户（Account 2+） |
+| 管理后台 | `http://localhost:3000/admin.html` | 仅管理员（Account 0） |
+| 商家后台 | `http://localhost:3000/merchant.html` | 仅商家（Account 1） |
+| 用户首页 | `http://localhost:3000/index.html` | 所有用户 |
+| 积分商城 | `http://localhost:3000/shop.html` | 所有用户 |
+| 积分兑换 | `http://localhost:3000/redeem.html` | 所有用户 |
+| 交易记录 | `http://localhost:3000/history.html` | 所有用户 |
 
-完整演示流程见 [docs/演示流程.md](docs/演示流程.md)。
+🎬 完整演示流程见 [docs/演示流程.md](docs/演示流程.md)。
 
 ## 合约接口
 
@@ -138,8 +117,10 @@ npx http-server frontend/ -p 3000 -c-1
 |:---|:---|:---|
 | `addMerchant(address)` | `onlyOwner` | 添加商家 |
 | `removeMerchant(address)` | `onlyOwner` | 移除商家 |
+| `pause()` / `unpause()` | `onlyOwner` | 暂停/恢复合约 |
 | `reward(address, uint256)` | `onlyMerchant` | 向用户发放积分（mint） |
 | `spend(address, uint256)` | `onlyMerchant` | 从用户扣除积分（burn） |
+| `redeemTokens(uint256)` | 任何人 | 用户自主销毁积分兑换 |
 | `transfer(address, uint256)` | 任何人 | 转账积分 |
 | `approve(address, uint256)` | 任何人 | 授权额度 |
 | `transferFrom(address, address, uint256)` | 授权用户 | 代理转账 |
@@ -148,10 +129,11 @@ npx http-server frontend/ -p 3000 -c-1
 
 | 命令 | 说明 |
 |:---|:---|
+| `npm start` | 一键启动（检查→编译→部署→初始化→前端） |
+| `npm test` | 运行单元测试（48 cases） |
 | `npm run compile` | 编译合约 |
-| `npm test` | 运行单元测试 |
-| `npm run deploy` | 用 Hardhat Ignition 部署 |
-| `npm run deploy:full` | 一键部署（编译 + 部署 + 更新前端地址） |
+| `npm run deploy:full` | 一键部署（编译 + 部署 + 更新前端地址 + 同步 ABI） |
+| `npm run init` | 初始化演示数据（幂等） |
 
 ## 演示账户
 
@@ -159,8 +141,7 @@ npx http-server frontend/ -p 3000 -c-1
 
 | 索引 | 地址 | 角色 |
 |:---|:---|:---|
-| Account 0 | `0x6f5F0Bb0B2167C386bA9AEb420e7Bf4ef0E2f3F5` | 管理员 |
-| Account 1 | `0x2E41528A488d166B8c1EEaeC2e271A979Ff5cB82` | 商家 |
-| Account 2 | `0x31FE47b6b4aEF60b5971735aE7C0836E1173743E` | 用户 A |
-| Account 3 | `0xa0C19A4F28ADac0d2aA4C244Bee5d5E52F781Ca1` | 用户 B |
-| Account 4 | `0x041CDFebb3723e9eDad09b057b694a4b27573Ad4` | — |
+| Account 0 | `0xed329e6792b65ff9e45b4d7cA3fF7CE59d829857` | 管理员 |
+| Account 1 | `0xFed50871bBE34950e6488c532b03359156417F52` | 商家 |
+| Account 2 | `0x4A52673E3B88C235DB2f5fF6a1B4f6Cb3339c2E8` | 用户 A |
+| Account 4 | `0xB47e4ABEAee85B21C59e23e94A4d3AA50f7669da` | 用户 B |

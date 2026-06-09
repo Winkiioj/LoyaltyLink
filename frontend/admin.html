@@ -6,7 +6,18 @@
     <title>LoyaltyLink - 管理端</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-page="admin">
+    <header class="nav-bar">
+      <div class="nav-title">LoyaltyLink</div>
+      <nav class="nav-links">
+        <a href="index.html" class="nav-link" data-page="index">首页</a>
+        <a href="shop.html" class="nav-link" data-page="shop">商城</a>
+        <a href="redeem.html" class="nav-link" data-page="redeem">兑换</a>
+        <a href="merchant.html" class="nav-link" data-page="merchant">商家</a>
+        <a href="history.html" class="nav-link" data-page="history">记录</a>
+        <a href="admin.html" class="nav-link" data-page="admin">管理</a>
+      </nav>
+    </header>
     <div class="container">
         <h1>LoyaltyLink 管理端</h1>
 
@@ -22,19 +33,20 @@
         <hr>
 
         <h3>添加商家</h3>
-        <input type="text" id="addMerchantAddress" placeholder="商家地址 (0x...)">
+        <input type="text" id="addMerchantAddress" placeholder="商家地址 (0x...)"><span class="field-error"></span>
+        <input type="text" id="addMerchantName" placeholder="商家名称（选填，如: 奶茶店张姐）"><span class="field-error"></span>
         <button id="addMerchantBtn">添加商家</button>
 
         <hr>
 
         <h3>移除商家</h3>
-        <input type="text" id="removeMerchantAddress" placeholder="商家地址 (0x...)">
+        <input type="text" id="removeMerchantAddress" placeholder="商家地址 (0x...)"><span class="field-error"></span>
         <button id="removeMerchantBtn">移除商家</button>
 
         <hr>
 
         <h3>查询指定地址是否为商家</h3>
-        <input type="text" id="checkMerchantAddress" placeholder="查询地址 (0x...)">
+        <input type="text" id="checkMerchantAddress" placeholder="查询地址 (0x...)"><span class="field-error"></span>
         <button id="checkMerchantBtn">查询商家状态</button>
         <div id="checkMerchantResult">查询结果: -</div>
 
@@ -43,10 +55,18 @@
         <h3>当前商家白名单</h3>
         <div id="merchantList">暂无数据</div>
 
+        <hr>
+
+        <h3>暂停/恢复合约（紧急控制）</h3>
+        <button id="pauseBtn">暂停合约</button>
+        <button id="unpauseBtn">恢复合约</button>
+        <div id="pauseStatus">合约状态: 未查询</div>
+
         <div id="status"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <script src="js/common.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

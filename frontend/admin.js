@@ -1,259 +1,202 @@
-// ========== 全局变量 ==========
-let web3;
-let contract;
-let currentAccount;
+/**
+ * LoyaltyLink 管理端 — 商家白名单管理、合约暂停/恢复
+ * 依赖：common.js（钱包连接 / 合约加载）、Web3.js CDN
+ */
 
-const contractAddress = "0x51566FbC6251682a434E57714Cb14e1D6b69B0df";
-const requiredChainId = "0x539"; // 1337
+// ========== 连接完成后的初始化 ==========
+LL.onReady = async function (tokenInfo) {
+    LL.setActiveNav();
+    LL.showStatus("正在获取管理员信息...", "pending");
+    await updateAdminInfo();
 
-// ========== 显示状态信息 ==========
-function showStatus(message, type) {
-    const statusDiv = document.getElementById("status");
-    statusDiv.innerText = message;
-    statusDiv.className = type;
-    statusDiv.style.display = "block";
+    LL.showStatus("正在加载商家白名单...", "pending");
+    await loadMerchantList();
 
-    // 错误消息不自动消失，方便排查
-    if (type !== "error") {
-        setTimeout(() => {
-            statusDiv.style.display = "none";
-        }, 3000);
-    }
-}
-
-// ========== 校验并切换网络 ==========
-async function checkNetwork() {
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
-
-    if (chainId !== requiredChainId) {
-        // 尝试自动切换到 Ganache 网络
-        try {
-            await window.ethereum.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: requiredChainId }]
-            });
-        } catch (switchError) {
-            // 网络不存在则添加
-            if (switchError.code === 4902) {
-                try {
-                    await window.ethereum.request({
-                        method: "wallet_addEthereumChain",
-                        params: [{
-                            chainId: requiredChainId,
-                            chainName: "Ganache Local",
-                            rpcUrls: ["http://127.0.0.1:7545"],
-                            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }
-                        }]
-                    });
-                } catch (addError) {
-                    throw new Error("无法添加 Ganache 网络: " + addError.message);
-                }
-            } else {
-                throw new Error("切换网络被拒绝，请在 MetaMask 中手动切换到 Ganache Local (1337)");
-            }
-        }
-    }
-}
-
-// ========== 加载合约 ==========
-async function loadContract() {
-    let response;
-    try {
-        response = await fetch("abi.json");
-    } catch (e) {
-        throw new Error("无法加载 abi.json，请确认前端服务在 frontend/ 目录启动");
-    }
-
-    if (!response.ok) {
-        throw new Error(`ABI 加载失败 (HTTP ${response.status})`);
-    }
-
-    const abi = await response.json();
-    contract = new web3.eth.Contract(abi, contractAddress);
-
-    // 验证合约是否存在
-    try {
-        const code = await web3.eth.getCode(contractAddress);
-        if (code === "0x" || code === "0x0") {
-            throw new Error(`合约未部署到地址 ${contractAddress}，请重新运行部署脚本`);
-        }
-    } catch (e) {
-        if (e.message.includes("合约未部署")) throw e;
-        // getCode 本身失败也意味着合约不存在
-        throw new Error(`无法在 ${contractAddress} 找到合约，请确认 Ganache 已启动且合约已部署`);
-    }
-
-    const name = await contract.methods.name().call();
-    const symbol = await contract.methods.symbol().call();
-    const decimals = await contract.methods.decimals().call();
-
-    document.getElementById("tokenInfo").innerText =
-        `代币: ${name} (${symbol}), 小数位: ${decimals}`;
-}
-
-// ========== 连接钱包 ==========
-async function connectWallet() {
-    try {
-        if (!window.ethereum) {
-            showStatus("请先安装 MetaMask 插件！", "error");
-            return;
-        }
-
-        showStatus("正在连接钱包...", "pending");
-
-        web3 = new Web3(window.ethereum);
-
-        await window.ethereum.request({ method: "eth_requestAccounts" });
-        await checkNetwork();
-
-        const accounts = await web3.eth.getAccounts();
-        currentAccount = accounts[0];
-
-        document.getElementById("account").innerText =
-            `账户: ${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
-
-        showStatus("正在加载合约...", "pending");
-        await loadContract();
-
-        showStatus("正在获取管理员信息...", "pending");
-        await updateAdminInfo();
-
-        showStatus("正在加载商家白名单...", "pending");
-        await loadMerchantList();
-
-        showStatus("钱包连接成功", "success");
-    } catch (error) {
-        console.error("连接失败:", error);
-        showStatus("连接失败: " + (error.message || "未知错误"), "error");
-    }
-}
+    LL.showStatus("正在查询合约状态...", "pending");
+    await updatePauseStatus();
+};
 
 // ========== 更新管理员信息 ==========
 async function updateAdminInfo() {
     try {
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
         if (!contract || !currentAccount) return;
 
-        const owner = await contract.methods.owner().call();
-        const isAdmin = owner.toLowerCase() === currentAccount.toLowerCase();
-
-        const ethBalanceWei = await web3.eth.getBalance(currentAccount);
-        const ethBalance = web3.utils.fromWei(ethBalanceWei, "ether");
+        var owner = await contract.methods.owner().call();
+        var isAdmin = owner.toLowerCase() === currentAccount.toLowerCase();
 
         document.getElementById("ownerInfo").innerText =
-            `Owner: ${owner}`;
+            "Owner: " + owner;
 
         document.getElementById("adminStatus").innerText =
             isAdmin ? "管理员状态: 是管理员，可以添加/移除商家" : "管理员状态: 不是管理员，只能查询";
 
-        document.getElementById("ethBalance").innerText =
-            `ETH 余额: ${parseFloat(ethBalance).toFixed(4)} ETH`;
+        await LL.updateEthBalance();
     } catch (error) {
         console.error("更新管理员信息失败:", error);
-        showStatus("更新管理员信息失败: " + error.message, "error");
+        LL.showStatus(LL.translateError(error), "error");
     }
 }
 
 // ========== 添加商家 ==========
 async function addMerchant() {
+    var restoreBtn = function () {};
+
     try {
+        LL.clearAllFieldErrors();
+
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
         if (!contract || !currentAccount) {
-            showStatus("请先连接钱包", "error");
+            LL.showStatus("请先连接钱包", "error");
             return;
         }
 
-        const merchant = document.getElementById("addMerchantAddress").value.trim();
+        var merchant = document.getElementById("addMerchantAddress").value.trim();
+        var name = document.getElementById("addMerchantName").value.trim();
 
         if (!merchant) {
-            showStatus("请输入商家地址", "error");
+            LL.showFieldError("addMerchantAddress", "请输入商家地址");
             return;
         }
 
-        if (!web3.utils.isAddress(merchant)) {
-            showStatus("商家地址格式错误", "error");
+        if (!LL.web3().utils.isAddress(merchant)) {
+            LL.showFieldError("addMerchantAddress", "请输入有效的以太坊地址 (0x...)");
             return;
         }
 
-        showStatus("添加商家处理中...", "pending");
+        // 构建确认消息
+        var confirmMsg = "即将添加商家: " + LL.truncateAddress(merchant);
+        if (name) {
+            confirmMsg += "\n商家名称: " + name;
+        }
+
+        var confirmed = await LL.confirm("确认添加商家", confirmMsg);
+        if (!confirmed) return;
+
+        restoreBtn = LL.setButtonLoading("addMerchantBtn", "添加处理中...");
 
         await contract.methods.addMerchant(merchant).send({
-            from: currentAccount
+            from: currentAccount,
+            gas: 300000
         });
 
+        // 保存商家名称（如果有）
+        if (name) {
+            LL.saveMerchantName(merchant, name);
+        }
+
         document.getElementById("addMerchantAddress").value = "";
+        document.getElementById("addMerchantName").value = "";
 
         await loadMerchantList();
 
-        showStatus("商家添加成功", "success");
+        LL.showStatus("商家添加成功" + (name ? "：" + name : ""), "success");
     } catch (error) {
         console.error("添加商家失败:", error);
-        showStatus("添加商家失败: " + (error.message || "未知错误"), "error");
+        LL.showStatus(LL.translateError(error), "error");
+    } finally {
+        restoreBtn();
     }
 }
 
 // ========== 移除商家 ==========
 async function removeMerchant() {
+    var restoreBtn = function () {};
+
     try {
+        LL.clearAllFieldErrors();
+
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
         if (!contract || !currentAccount) {
-            showStatus("请先连接钱包", "error");
+            LL.showStatus("请先连接钱包", "error");
             return;
         }
 
-        const merchant = document.getElementById("removeMerchantAddress").value.trim();
+        var merchant = document.getElementById("removeMerchantAddress").value.trim();
 
         if (!merchant) {
-            showStatus("请输入商家地址", "error");
+            LL.showFieldError("removeMerchantAddress", "请输入商家地址");
             return;
         }
 
-        if (!web3.utils.isAddress(merchant)) {
-            showStatus("商家地址格式错误", "error");
+        if (!LL.web3().utils.isAddress(merchant)) {
+            LL.showFieldError("removeMerchantAddress", "请输入有效的以太坊地址 (0x...)");
             return;
         }
 
-        showStatus("移除商家处理中...", "pending");
+        // 获取商家名称用于友好提示
+        var names = LL.getMerchantNames();
+        var displayName = names[merchant.toLowerCase()] || LL.truncateAddress(merchant);
+
+        var confirmed = await LL.confirm(
+            "确认移除商家",
+            "即将移除商家: " + displayName + "\n\n移除后该地址将无法发放/扣除积分"
+        );
+        if (!confirmed) return;
+
+        restoreBtn = LL.setButtonLoading("removeMerchantBtn", "移除处理中...");
 
         await contract.methods.removeMerchant(merchant).send({
-            from: currentAccount
+            from: currentAccount,
+            gas: 300000
         });
 
         document.getElementById("removeMerchantAddress").value = "";
 
         await loadMerchantList();
 
-        showStatus("商家移除成功", "success");
+        LL.showStatus("商家移除成功：" + displayName, "success");
     } catch (error) {
         console.error("移除商家失败:", error);
-        showStatus("移除商家失败: " + (error.message || "未知错误"), "error");
+        LL.showStatus(LL.translateError(error), "error");
+    } finally {
+        restoreBtn();
     }
 }
 
 // ========== 查询指定地址是否为商家 ==========
 async function checkMerchant() {
     try {
+        LL.clearAllFieldErrors();
+
+        var contract = LL.contract();
+
         if (!contract) {
-            showStatus("请先连接钱包", "error");
+            LL.showStatus("请先连接钱包", "error");
             return;
         }
 
-        const address = document.getElementById("checkMerchantAddress").value.trim();
+        var address = document.getElementById("checkMerchantAddress").value.trim();
 
         if (!address) {
-            showStatus("请输入查询地址", "error");
+            LL.showFieldError("checkMerchantAddress", "请输入查询地址");
             return;
         }
 
-        if (!web3.utils.isAddress(address)) {
-            showStatus("查询地址格式错误", "error");
+        if (!LL.web3().utils.isAddress(address)) {
+            LL.showFieldError("checkMerchantAddress", "请输入有效的以太坊地址 (0x...)");
             return;
         }
 
-        const isMerchant = await contract.methods.merchants(address).call();
+        var isMerchant = await contract.methods.merchants(address).call();
+        var names = LL.getMerchantNames();
+        var displayName = names[address.toLowerCase()] || "";
 
-        document.getElementById("checkMerchantResult").innerText =
-            isMerchant ? "查询结果: 是商家" : "查询结果: 不是商家";
+        var text = isMerchant ? "查询结果: 是商家" : "查询结果: 不是商家";
+        if (displayName) {
+            text += " (" + displayName + ")";
+        }
+
+        document.getElementById("checkMerchantResult").innerText = text;
     } catch (error) {
         console.error("查询商家状态失败:", error);
-        showStatus("查询失败: " + error.message, "error");
+        LL.showStatus(LL.translateError(error), "error");
     }
 }
 
@@ -261,68 +204,175 @@ async function checkMerchant() {
 // 按时间顺序重放 Add/Remove 事件，保证最终状态正确
 async function loadMerchantList() {
     try {
+        var contract = LL.contract();
+
         if (!contract) return;
 
-        const addedEvents = await contract.getPastEvents("MerchantAdded", {
+        var addedEvents = await contract.getPastEvents("MerchantAdded", {
             fromBlock: 0,
             toBlock: "latest"
         });
 
-        const removedEvents = await contract.getPastEvents("MerchantRemoved", {
+        var removedEvents = await contract.getPastEvents("MerchantRemoved", {
             fromBlock: 0,
             toBlock: "latest"
         });
 
         // 合并并按区块号+交易索引排序，确保按时间顺序重放
-        const allEvents = [
-            ...addedEvents.map(e => ({ ...e, _type: "add" })),
-            ...removedEvents.map(e => ({ ...e, _type: "remove" }))
-        ].sort((a, b) => {
-            if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
-            return a.transactionIndex - b.transactionIndex;
-        });
+        var allEvents = addedEvents.map(function (e) { return { address: e.returnValues.merchant, blockNumber: e.blockNumber, txIndex: e.transactionIndex, type: "add" }; })
+            .concat(removedEvents.map(function (e) { return { address: e.returnValues.merchant, blockNumber: e.blockNumber, txIndex: e.transactionIndex, type: "remove" }; }))
+            .sort(function (a, b) {
+                if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
+                return a.txIndex - b.txIndex;
+            });
 
-        const merchantMap = new Map();
+        var merchantMap = new Map();
 
-        for (const event of allEvents) {
-            const merchant = event.returnValues.merchant;
-            if (event._type === "add") {
-                merchantMap.set(merchant.toLowerCase(), merchant);
+        for (var i = 0; i < allEvents.length; i++) {
+            var evt = allEvents[i];
+            if (evt.type === "add") {
+                merchantMap.set(evt.address.toLowerCase(), evt.address);
             } else {
-                merchantMap.delete(merchant.toLowerCase());
+                merchantMap.delete(evt.address.toLowerCase());
             }
         }
 
-        const listDiv = document.getElementById("merchantList");
+        var listDiv = document.getElementById("merchantList");
+        var names = LL.getMerchantNames();
 
         if (merchantMap.size === 0) {
             listDiv.innerHTML = "暂无商家";
             return;
         }
 
-        let html = "<ul>";
-
-        for (const merchant of merchantMap.values()) {
-            html += `<li style="word-break: break-all; margin: 8px 0;">${merchant}</li>`;
+        var html = "<ul>";
+        var entries = merchantMap.values();
+        var entry = entries.next();
+        while (!entry.done) {
+            var addr = entry.value;
+            var merchantName = names[addr.toLowerCase()];
+            var displayText = merchantName
+                ? addr + " <span style=\"color: #667eea; font-weight: 600;\">(" + merchantName + ")</span>"
+                : addr;
+            html += "<li style=\"word-break: break-all; margin: 8px 0;\">" + displayText + "</li>";
+            entry = entries.next();
         }
-
         html += "</ul>";
 
         listDiv.innerHTML = html;
     } catch (error) {
         console.error("加载商家白名单失败:", error);
-        showStatus("加载商家白名单失败: " + error.message, "error");
+        LL.showStatus("加载商家白名单失败: " + error.message, "error");
     }
 }
 
-// ========== 事件绑定 ==========
-document.getElementById("connectBtn").addEventListener("click", connectWallet);
-document.getElementById("refreshBtn").addEventListener("click", loadMerchantList);
-document.getElementById("addMerchantBtn").addEventListener("click", addMerchant);
-document.getElementById("removeMerchantBtn").addEventListener("click", removeMerchant);
-document.getElementById("checkMerchantBtn").addEventListener("click", checkMerchant);
+// ========== 暂停/恢复（紧急控制） ==========
 
-if (window.ethereum) {
-    window.ethereum.on("accountsChanged", () => location.reload());
-    window.ethereum.on("chainChanged", () => location.reload());
+async function updatePauseStatus() {
+    try {
+        var contract = LL.contract();
+        if (!contract) return;
+
+        var paused = await contract.methods.paused().call();
+        document.getElementById("pauseStatus").innerText =
+            "合约状态: " + (paused ? "已暂停 ⚠️" : "正常运行 ✅");
+    } catch (error) {
+        console.error("查询暂停状态失败:", error);
+    }
 }
+
+async function pauseContract() {
+    var restoreBtn = function () {};
+
+    try {
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
+        if (!contract || !currentAccount) {
+            LL.showStatus("请先连接钱包", "error");
+            return;
+        }
+
+        var confirmed = await LL.confirm(
+            "确认暂停合约",
+            "即将暂停合约的所有积分操作\n\n暂停后 reward / spend / transfer 均无法执行\n管理员仍可添加/移除商家"
+        );
+        if (!confirmed) return;
+
+        restoreBtn = LL.setButtonLoading("pauseBtn", "暂停处理中...");
+
+        await contract.methods.pause().send({ from: currentAccount, gas: 200000 });
+
+        await updatePauseStatus();
+        LL.showStatus("合约已暂停，所有积分操作被冻结", "success");
+    } catch (error) {
+        console.error("暂停失败:", error);
+        LL.showStatus(LL.translateError(error), "error");
+    } finally {
+        restoreBtn();
+    }
+}
+
+async function unpauseContract() {
+    var restoreBtn = function () {};
+
+    try {
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
+        if (!contract || !currentAccount) {
+            LL.showStatus("请先连接钱包", "error");
+            return;
+        }
+
+        var confirmed = await LL.confirm(
+            "确认恢复合约",
+            "即将恢复合约的所有积分操作\n\n恢复后所有功能恢复正常"
+        );
+        if (!confirmed) return;
+
+        restoreBtn = LL.setButtonLoading("unpauseBtn", "恢复处理中...");
+
+        await contract.methods.unpause().send({ from: currentAccount, gas: 200000 });
+
+        await updatePauseStatus();
+        LL.showStatus("合约已恢复，所有功能正常", "success");
+    } catch (error) {
+        console.error("恢复失败:", error);
+        LL.showStatus(LL.translateError(error), "error");
+    } finally {
+        restoreBtn();
+    }
+}
+
+// ========== 事件绑定（防御性注册，避免单个元素缺失阻断整个页面） ==========
+(function bindEvents() {
+    try {
+        var els = {
+            connectBtn: LL.connectWallet,
+            refreshBtn: loadMerchantList,
+            addMerchantBtn: addMerchant,
+            removeMerchantBtn: removeMerchant,
+            checkMerchantBtn: checkMerchant,
+            pauseBtn: pauseContract,
+            unpauseBtn: unpauseContract
+        };
+        for (var id in els) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener("click", els[id]);
+        }
+
+        // 输入框实时清除错误
+        var inputs = ["addMerchantAddress", "addMerchantName", "removeMerchantAddress", "checkMerchantAddress"];
+        for (var i = 0; i < inputs.length; i++) {
+            var inp = document.getElementById(inputs[i]);
+            if (inp) {
+                inp.addEventListener("input", (function (inputId) {
+                    return function () { LL.clearFieldError(inputId); };
+                })(inputs[i]));
+            }
+        }
+    } catch (e) {
+        console.error("admin.js 事件绑定失败:", e);
+    }
+})();
