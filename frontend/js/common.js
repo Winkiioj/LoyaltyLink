@@ -21,7 +21,7 @@ const LL = window.LL || {};
     let currentAccount = null;
 
     /** 合约地址（部署脚本自动更新） */
-    const contractAddress = "0x22C267c6A7bEA3705fdC3e004361E338E445d80b";
+    const contractAddress = "0x8D36e0A3f6a23fCc12E206D735e71Ebd461d010d";
 
     /** Ganache Chain ID (1337 = 0x539) */
     const requiredChainId = "0x539";
@@ -235,14 +235,14 @@ const LL = window.LL || {};
     function showRoleError(msg) {
         // 隐藏 .container 内所有直接子元素（h1/h2/h3/button/input/hr/div...）
         // 然后插入错误提示卡片，接着显示 .container 本身
-        const container = document.querySelector(".container");
-        if (container) {
+        const mainEl = document.querySelector(".main") || document.querySelector(".container");
+        if (mainEl) {
             // 先移除已有覆盖层（如果重复调用）
             const existing = document.getElementById("role-error");
             if (existing) existing.parentNode.removeChild(existing);
 
-            // 隐藏所有直接子元素（h1/h2/h3/button/input/hr/div...）
-            var children = container.children;
+            // 隐藏所有直接子元素
+            var children = mainEl.children;
             for (var i = children.length - 1; i >= 0; i--) {
                 children[i].style.display = "none";
             }
@@ -257,9 +257,9 @@ const LL = window.LL || {};
                 "<p style=\"color:#666;white-space:pre-line;line-height:1.7;margin:0;\">" + escapeHtml(msg) + "</p>" +
                 "<p style=\"color:#999;font-size:0.85rem;margin:16px 0 0 0;\">请在 MetaMask 中切换到正确的账户后刷新页面重试</p>";
 
-            container.appendChild(overlay);
-            // 恢复 container 本身可见
-            container.style.display = "block";
+            mainEl.appendChild(overlay);
+            // 恢复 main/container 本身可见
+            mainEl.style.display = "block";
         }
     }
 
@@ -325,7 +325,7 @@ const LL = window.LL || {};
     LL.setActiveNav = function () {
         var page = document.body.getAttribute("data-page");
         if (!page) return;
-        var links = document.querySelectorAll(".nav-link");
+        var links = document.querySelectorAll(".sidebar-link, .nav-link");
         for (var i = 0; i < links.length; i++) {
             if (links[i].getAttribute("data-page") === page) {
                 links[i].classList.add("active");
@@ -378,6 +378,46 @@ const LL = window.LL || {};
         var merchants = LL.getMerchantNames();
         merchants[address.toLowerCase()] = name;
         localStorage.setItem("ll_merchants", JSON.stringify(merchants));
+    };
+
+    /** 获取商家自定义商品列表 */
+    LL.getMerchantProducts = function () {
+        try { return JSON.parse(localStorage.getItem("ll_merchant_products") || "[]"); }
+        catch (e) { return []; }
+    };
+
+    /** 保存商家自定义商品 */
+    LL.addMerchantProduct = function (product) {
+        var products = LL.getMerchantProducts();
+        products.push(product);
+        localStorage.setItem("ll_merchant_products", JSON.stringify(products));
+    };
+
+    /** 删除商家自定义商品 */
+    LL.removeMerchantProduct = function (productId) {
+        var products = LL.getMerchantProducts();
+        products = products.filter(function (p) { return p.id !== productId; });
+        localStorage.setItem("ll_merchant_products", JSON.stringify(products));
+    };
+
+    /** 获取商家自定义兑换奖品列表 */
+    LL.getMerchantRedeemItems = function () {
+        try { return JSON.parse(localStorage.getItem("ll_merchant_redeems") || "[]"); }
+        catch (e) { return []; }
+    };
+
+    /** 保存商家自定义兑换奖品 */
+    LL.addMerchantRedeemItem = function (item) {
+        var items = LL.getMerchantRedeemItems();
+        items.push(item);
+        localStorage.setItem("ll_merchant_redeems", JSON.stringify(items));
+    };
+
+    /** 删除商家自定义兑换奖品 */
+    LL.removeMerchantRedeemItem = function (itemId) {
+        var items = LL.getMerchantRedeemItems();
+        items = items.filter(function (it) { return it.id !== itemId; });
+        localStorage.setItem("ll_merchant_redeems", JSON.stringify(items));
     };
 
     // ========== 中文错误消息映射 ==========

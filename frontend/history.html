@@ -7,50 +7,55 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body data-page="history">
-    <header class="nav-bar">
-      <div class="nav-title">LoyaltyLink</div>
-      <nav class="nav-links">
-        <a href="index.html" class="nav-link" data-page="index">首页</a>
-        <a href="shop.html" class="nav-link" data-page="shop">商城</a>
-        <a href="redeem.html" class="nav-link" data-page="redeem">兑换</a>
-        <a href="merchant.html" class="nav-link" data-page="merchant">商家</a>
-        <a href="history.html" class="nav-link" data-page="history">记录</a>
-        <a href="admin.html" class="nav-link" data-page="admin">管理</a>
-      </nav>
-    </header>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-name">LoyaltyLink</div>
+            <div class="brand-sub">Decentralized Loyalty</div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="index.html" class="sidebar-link" data-page="index"><span class="nav-icon">&#9673;</span>首页</a>
+            <a href="shop.html" class="sidebar-link" data-page="shop"><span class="nav-icon">&#9702;</span>商城</a>
+            <a href="redeem.html" class="sidebar-link" data-page="redeem"><span class="nav-icon">&#9730;</span>积分兑换</a>
+            <a href="merchant.html" class="sidebar-link" data-page="merchant"><span class="nav-icon">&#9743;</span>商家管理</a>
+            <a href="history.html" class="sidebar-link active" data-page="history"><span class="nav-icon">&#9776;</span>交易记录</a>
+            <a href="admin.html" class="sidebar-link" data-page="admin"><span class="nav-icon">&#9733;</span>管理后台</a>
+        </nav>
+        <div class="sidebar-footer">ERC-20 &middot; Ganache</div>
+    </aside>
 
-    <div class="container">
-        <h1>交易记录</h1>
+    <main class="main">
+        <div class="topbar">
+            <h1 class="page-title">交易记录</h1>
+            <button id="connectBtn" class="btn-connect">连接 MetaMask</button>
+        </div>
 
-        <button id="connectBtn">连接 MetaMask</button>
+        <div class="info-strip">
+            <div class="info-card"><div class="info-label">账户</div><div class="info-value" id="account">未连接</div></div>
+            <div class="info-card"><div class="info-label">合约</div><div class="info-value" id="tokenInfo">未加载</div></div>
+            <div class="info-card"><div class="info-label">LYL 余额</div><div class="info-value" id="balance">0</div></div>
+            <div class="info-card"><div class="info-label">ETH 余额</div><div class="info-value" id="ethBalance">0</div></div>
+        </div>
 
-        <div id="account">账户: 未连接</div>
-        <div id="tokenInfo">代币: 未加载</div>
-        <div id="balance">LYL 余额: 0</div>
-        <div id="ethBalance">ETH 余额: 0</div>
+        <div class="panel" style="flex:1;">
+            <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                交易历史
+                <div class="filter-bar" style="margin:0;">
+                    <select id="filter-type">
+                        <option value="all">全部</option>
+                        <option value="reward">发放</option>
+                        <option value="transfer">转账</option>
+                        <option value="admin">管理</option>
+                        <option value="order">订单</option>
+                        <option value="redemption">兑换</option>
+                    </select>
+                    <button id="btn-refresh" class="btn-sm">刷新</button>
+                </div>
+            </div>
+            <div id="history-list"><p class="hint">请先连接钱包后刷新</p></div>
+        </div>
 
         <div id="status"></div>
-
-        <section class="section">
-            <div class="filter-bar">
-                <select id="filter-type">
-                    <option value="all">全部类型</option>
-                    <option value="reward">发放积分</option>
-                    <option value="transfer">转账</option>
-                    <option value="admin">管理操作</option>
-                    <option value="order">商城订单</option>
-                    <option value="redemption">积分兑换</option>
-                </select>
-                <button id="btn-refresh">刷新</button>
-            </div>
-            <p style="color: #888; font-size: 0.85rem; margin-bottom: 12px;">
-                显示与当前账户相关的链上交易和链下订单记录。点击交易哈希可查看详情。
-            </p>
-            <div id="history-list">
-                <p class="hint">请先连接钱包后刷新</p>
-            </div>
-        </section>
-    </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
     <script src="js/common.js"></script>

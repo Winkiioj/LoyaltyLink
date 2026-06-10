@@ -9,6 +9,8 @@ LL.onReady = async function (tokenInfo) {
     await updateMerchantInfo();
     loadPendingOrders();
     loadRedemptionRequests();
+    renderMyProducts();
+    renderMyRedeemItems();
 };
 
 // ========== 更新商家信息 ==========
@@ -215,11 +217,18 @@ function loadPendingOrders() {
     if (!container) return;
 
     var orders = LL.getOrders();
+    var account = LL.currentAccount();
+    var accountLower = account ? account.toLowerCase() : "";
     var pending = [];
 
     for (var i = orders.length - 1; i >= 0; i--) {
-        if (orders[i].status === "pending") {
-            pending.push(orders[i]);
+        var o = orders[i];
+        if (o.status !== "pending") continue;
+        // 自定义商品仅该商家可见；默认商品所有商家可见
+        var isDefaultProduct = !o.merchantAddress;
+        var isOwnProduct = o.merchantAddress && o.merchantAddress.toLowerCase() === accountLower;
+        if (isDefaultProduct || isOwnProduct) {
+            pending.push(o);
         }
     }
 
@@ -371,11 +380,167 @@ function formatMerchantTime(ts) {
            (minutes < 10 ? "0" : "") + minutes;
 }
 
+// ========== 商品管理 ==========
+function addProduct() {
+    var currentAccount = LL.currentAccount();
+    if (!currentAccount) {
+        LL.showStatus("请先连接钱包", "error");
+        return;
+    }
+
+    var nameInput = document.getElementById("productName");
+    var priceInput = document.getElementById("productPrice");
+    var pointsInput = document.getElementById("productPoints");
+    var iconInput = document.getElementById("productIcon");
+
+    var name = nameInput.value.trim();
+    var price = priceInput.value.trim();
+    var points = pointsInput.value.trim();
+    var icon = iconInput.value.trim() || "🛍️";
+
+    if (!name) { LL.showFieldError("productName", "请输入商品名称"); return; }
+    if (!price || Number(price) <= 0) { LL.showFieldError("productPrice", "价格必须大于 0"); return; }
+    if (!points || Number(points) <= 0) { LL.showFieldError("productPoints", "积分数必须大于 0"); return; }
+
+    // 获取商家名称（优先用已保存的，否则用截断地址）
+    var merchantNames = LL.getMerchantNames();
+    var merchantName = merchantNames[currentAccount.toLowerCase()] || LL.truncateAddress(currentAccount);
+
+    var product = {
+        id: "cust_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+        name: name,
+        price: Number(price),
+        pointsRequired: Number(points),
+        merchant: merchantName,
+        merchantAddress: currentAccount,
+        icon: icon
+    };
+
+    LL.addMerchantProduct(product);
+    LL.showStatus("商品已添加：" + name + "（¥" + price + "，发放 " + points + " LYL）", "success");
+
+    nameInput.value = "";
+    priceInput.value = "";
+    pointsInput.value = "";
+    iconInput.value = "🛍️";
+    LL.clearAllFieldErrors();
+    renderMyProducts();
+}
+
+function deleteProduct(productId) {
+    LL.removeMerchantProduct(productId);
+    LL.showStatus("商品已移除", "success");
+    renderMyProducts();
+}
+
+function renderMyProducts() {
+    var container = document.getElementById("my-products");
+    if (!container) return;
+
+    var currentAccount = LL.currentAccount();
+    if (!currentAccount) return;
+
+    var allProducts = LL.getMerchantProducts();
+    var myProducts = [];
+    for (var i = 0; i < allProducts.length; i++) {
+        if (allProducts[i].merchantAddress && allProducts[i].merchantAddress.toLowerCase() === currentAccount.toLowerCase()) {
+            myProducts.push(allProducts[i]);
+        }
+    }
+
+    if (myProducts.length === 0) {
+        container.innerHTML = "<p class=\"hint\">尚未添加自定义商品，添加后将显示在商城</p>";
+        return;
+    }
+
+    var html = "";
+    for (var j = 0; j < myProducts.length; j++) {
+        var p = myProducts[j];
+        html += "<div class=\"product-list-item\">" +
+            "<span>" + p.icon + "</span>" +
+            "<span class=\"p-name\">" + p.name + "</span>" +
+            "<span class=\"p-price\">¥" + p.price + " → " + p.pointsRequired + " LYL</span>" +
+            "<button class=\"p-del\" onclick=\"deleteProduct('" + p.id + "')\">✕</button>" +
+            "</div>";
+    }
+    container.innerHTML = html;
+}
+
+// ========== 兑换奖品管理 ==========
+function addRedeemItem() {
+    var currentAccount = LL.currentAccount();
+    if (!currentAccount) { LL.showStatus("请先连接钱包", "error"); return; }
+
+    var nameInput = document.getElementById("redeemItemName");
+    var pointsInput = document.getElementById("redeemItemPoints");
+    var iconInput = document.getElementById("redeemItemIcon");
+    var name = nameInput.value.trim();
+    var points = pointsInput.value.trim();
+    var icon = iconInput.value.trim() || "🎁";
+
+    if (!name) { LL.showFieldError("redeemItemName", "请输入奖品名称"); return; }
+    if (!points || Number(points) <= 0) { LL.showFieldError("redeemItemPoints", "积分数必须大于 0"); return; }
+
+    var merchantNames = LL.getMerchantNames();
+    var merchantName = merchantNames[currentAccount.toLowerCase()] || LL.truncateAddress(currentAccount);
+
+    var item = {
+        id: "rdm_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+        name: name, points: Number(points), icon: icon,
+        desc: merchantName, merchantAddress: currentAccount, merchant: merchantName
+    };
+
+    LL.addMerchantRedeemItem(item);
+    LL.showStatus("兑换奖品已添加：" + name + "（" + points + " LYL）", "success");
+    nameInput.value = ""; pointsInput.value = ""; iconInput.value = "🎁";
+    LL.clearAllFieldErrors();
+    renderMyRedeemItems();
+}
+
+function deleteRedeemItem(itemId) {
+    LL.removeMerchantRedeemItem(itemId);
+    LL.showStatus("兑换奖品已移除", "success");
+    renderMyRedeemItems();
+}
+
+function renderMyRedeemItems() {
+    var container = document.getElementById("my-redeems");
+    if (!container) return;
+    var currentAccount = LL.currentAccount();
+    if (!currentAccount) return;
+
+    var allItems = LL.getMerchantRedeemItems();
+    var myItems = [];
+    for (var i = 0; i < allItems.length; i++) {
+        if (allItems[i].merchantAddress && allItems[i].merchantAddress.toLowerCase() === currentAccount.toLowerCase()) {
+            myItems.push(allItems[i]);
+        }
+    }
+
+    if (myItems.length === 0) {
+        container.innerHTML = "<p class=\"hint\">尚未添加自定义兑换奖品</p>";
+        return;
+    }
+
+    var html = "";
+    for (var j = 0; j < myItems.length; j++) {
+        var item = myItems[j];
+        html += "<div class=\"product-list-item\">" +
+            "<span>" + item.icon + "</span>" +
+            "<span class=\"p-name\">" + item.name + "</span>" +
+            "<span class=\"p-price\">" + item.points + " LYL</span>" +
+            "<button class=\"p-del\" onclick=\"deleteRedeemItem('" + item.id + "')\">✕</button>" +
+            "</div>";
+    }
+    container.innerHTML = html;
+}
+
 // ========== 事件绑定（防御性注册） ==========
 (function bindEvents() {
     try {
         var btnIds = {
-            connectBtn: LL.connectWallet, rewardBtn: reward, spendBtn: spend, queryBtn: queryBalance
+            connectBtn: LL.connectWallet, rewardBtn: reward, spendBtn: spend,
+            queryBtn: queryBalance, addProductBtn: addProduct, addRedeemBtn: addRedeemItem
         };
         for (var id in btnIds) {
             var el = document.getElementById(id);

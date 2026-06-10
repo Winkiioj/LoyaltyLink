@@ -73,7 +73,7 @@ async function loadHistory() {
             }
         }
 
-        // 2b. 后处理：burn Transfer (to=0x0) 统一归类为积分兑换
+        // 2c. 后处理：burn Transfer (to=0x0) 统一归类为积分兑换
         // redeemTokens() 和 spend() 内部都调用 _burn() emit Transfer(to=0x0)
         // getPastEvents("TokensRedeemed") 在部分 Ganache 版本下可能不兼容
         // 这里的 Transfer 事件如果还没被归类（admin+系统销毁），统一改为 redemption
@@ -113,14 +113,26 @@ async function loadHistory() {
         // 4. 合并去重（链上记录优先）
         var allItems = mergeAndDedupe(chainItems, localItems);
 
-        // 5. 应用类型筛选
+        // 5. 非管理员过滤掉管理类事件（普通用户不应看到添加商家/暂停合约等）
+        var currentOwner = null;
+        try {
+            currentOwner = await contract.methods.owner().call();
+        } catch (e) {}
+        var isCurrentUserOwner = currentOwner && account.toLowerCase() === currentOwner.toLowerCase();
+        if (!isCurrentUserOwner) {
+            allItems = allItems.filter(function (item) {
+                return item.type !== "admin";
+            });
+        }
+
+        // 6. 应用类型筛选
         if (filterType !== "all") {
             allItems = allItems.filter(function (item) {
                 return item.type === filterType;
             });
         }
 
-        // 6. 渲染
+        // 7. 渲染
         renderHistory(allItems, container);
 
     } catch (err) {

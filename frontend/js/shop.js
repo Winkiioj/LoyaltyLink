@@ -1,19 +1,47 @@
 /**
- * LoyaltyLink 积分商城 — 商品浏览、下单
+ * LoyaltyLink 商城 — 商品浏览、下单
  * 依赖：common.js（钱包连接 / 合约加载）、Web3.js CDN
  *
  * 订单存储在 localStorage (ll_orders)，商家在 merchant.html 确认后调用 reward() 上链
  */
 
-// ========== 商品目录（模拟联盟商家） ==========
-var PRODUCTS = [
-    { id: "bubble_tea",  name: "珍珠奶茶",       price: 15, merchant: "奶茶店", icon: "🧋" },
-    { id: "coffee",      name: "拿铁咖啡",       price: 22, merchant: "咖啡店", icon: "☕" },
-    { id: "printing",    name: "黑白打印(10页)", price: 5,  merchant: "打印店", icon: "🖨️" },
-    { id: "laundry",     name: "洗衣服务",       price: 30, merchant: "洗衣店", icon: "👕" },
-    { id: "fruit_tea",   name: "水果茶",         price: 18, merchant: "奶茶店", icon: "🍹" },
-    { id: "binding",     name: "论文装订",       price: 12, merchant: "打印店", icon: "📚" }
+// ========== 默认商品目录 ==========
+var DEFAULT_PRODUCTS = [
+    { id: "bubble_tea",  name: "珍珠奶茶",       price: 15, merchant: "官方", icon: "🧋" },
+    { id: "coffee",      name: "拿铁咖啡",       price: 22, merchant: "官方", icon: "☕" },
+    { id: "printing",    name: "黑白打印(10页)", price: 5,  merchant: "官方", icon: "🖨️" },
+    { id: "laundry",     name: "洗衣服务",       price: 30, merchant: "官方", icon: "👕" },
+    { id: "fruit_tea",   name: "水果茶",         price: 18, merchant: "官方", icon: "🍹" },
+    { id: "binding",     name: "论文装订",       price: 12, merchant: "官方", icon: "📚" }
 ];
+
+/** 合并默认商品 + 商家自定义商品 */
+function getProducts() {
+    var customs = LL.getMerchantProducts();
+    return DEFAULT_PRODUCTS.concat(customs);
+}
+
+/** 获取所有不重复的商家列表 */
+function getProductMerchants() {
+    var all = getProducts();
+    var seen = {};
+    var list = [];
+    for (var i = 0; i < all.length; i++) {
+        var m = all[i].merchant || "其他";
+        if (!seen[m]) { seen[m] = true; list.push(m); }
+    }
+    return list;
+}
+
+function populateShopFilter() {
+    var sel = document.getElementById("shop-merchant-filter");
+    if (!sel) return;
+    sel.innerHTML = "<option value=\"all\">全部商家</option>";
+    var merchants = getProductMerchants();
+    for (var i = 0; i < merchants.length; i++) {
+        sel.innerHTML += "<option value=\"" + merchants[i] + "\">" + merchants[i] + "</option>";
+    }
+}
 
 // ========== 生成唯一订单 ID ==========
 function generateOrderId() {
@@ -25,6 +53,7 @@ LL.onReady = async function (tokenInfo) {
     LL.setActiveNav();
     await LL.updateTokenBalance();
     await LL.updateEthBalance();
+    populateShopFilter();
     renderProducts();
     renderMyOrders();
 };
@@ -34,19 +63,27 @@ function renderProducts() {
     var container = document.getElementById("product-list");
     if (!container) return;
 
+    var allProducts = getProducts();
+    var filter = document.getElementById("shop-merchant-filter");
+    var currentFilter = filter ? filter.value : "all";
+
+    if (currentFilter !== "all") {
+        allProducts = allProducts.filter(function (p) { return (p.merchant || "其他") === currentFilter; });
+    }
+
     var html = "";
-    for (var i = 0; i < PRODUCTS.length; i++) {
-        var p = PRODUCTS[i];
+    for (var i = 0; i < allProducts.length; i++) {
+        var p = allProducts[i];
         html += "" +
             "<div class=\"product-card\">" +
             "  <div class=\"product-icon\">" + p.icon + "</div>" +
             "  <div class=\"product-name\">" + p.name + "</div>" +
             "  <div class=\"product-merchant\">" + p.merchant + "</div>" +
-            "  <div class=\"product-price\">¥" + p.price + " → " + p.price + " LYL</div>" +
+            "  <div class=\"product-price\">¥" + p.price + " → 发放 " + (p.pointsRequired || p.price) + " LYL</div>" +
             "  <button class=\"button-sm\" onclick=\"buyProduct('" + p.id + "')\">购买</button>" +
             "</div>";
     }
-    container.innerHTML = html;
+    container.innerHTML = html || "<p class=\"hint\">该商家暂无商品</p>";
 }
 
 // ========== 购买商品（创建离线订单） ==========
@@ -58,9 +95,9 @@ function buyProduct(productId) {
     }
 
     var product = null;
-    for (var i = 0; i < PRODUCTS.length; i++) {
-        if (PRODUCTS[i].id === productId) {
-            product = PRODUCTS[i];
+    for (var i = 0; i < getProducts().length; i++) {
+        if (getProducts()[i].id === productId) {
+            product = getProducts()[i];
             break;
         }
     }
@@ -76,9 +113,10 @@ function buyProduct(productId) {
         productId: product.id,
         productName: product.name,
         priceYuan: product.price,
-        pointsRequired: product.price,  // 1元 = 1积分
-        amountWei: LL.web3().utils.toWei(String(product.price), "ether"),
+        pointsRequired: product.pointsRequired || product.price,
+        amountWei: LL.web3().utils.toWei(String(product.pointsRequired || product.price), "ether"),
         merchant: product.merchant,
+        merchantAddress: product.merchantAddress || "",
         buyer: account,
         timestamp: Date.now(),
         status: "pending",
