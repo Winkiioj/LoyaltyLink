@@ -1,20 +1,24 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-ethers";
+import { defineConfig } from "hardhat/config";
+import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 
+const MNEMONIC = process.env.MNEMONIC || "maid notable twist mutual dune speed come dolphin wet gaze scout sort";
 
-const config: HardhatUserConfig = {
-  solidity: "0.8.20",
+export default defineConfig({
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      evmVersion: "london",
+    },
+  },
   networks: {
     ganache: {
- type: "http",
-      url: "http://127.0.0.1:7545",
+      type: "http",
+      url: process.env.GANACHE_RPC || "http://127.0.0.1:7545",
       chainId: 1337,
       accounts: {
-        mnemonic: "quick snow fox erode faith inject excite moment tunnel lamp crazy repeat"
-      
+        mnemonic: MNEMONIC
       }
     }
-  }
-};
-
-export default config;
+  },
+  plugins: [hardhatToolboxMochaEthers],
+});
