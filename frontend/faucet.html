@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>积分兑换 - LoyaltyLink</title>
+    <title>水龙头 - LoyaltyLink</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body data-page="redeem">
+<body data-page="faucet">
     <aside class="sidebar">
         <div class="sidebar-brand">
             <div class="brand-name">LoyaltyLink</div>
@@ -15,7 +15,7 @@
         <nav class="sidebar-nav">
             <a href="index.html" class="sidebar-link" data-page="index"><span class="nav-icon">&#9673;</span>首页</a>
             <a href="shop.html" class="sidebar-link" data-page="shop"><span class="nav-icon">&#9702;</span>商城</a>
-            <a href="redeem.html" class="sidebar-link active" data-page="redeem"><span class="nav-icon">&#9730;</span>积分兑换</a>
+            <a href="redeem.html" class="sidebar-link" data-page="redeem"><span class="nav-icon">&#9730;</span>积分兑换</a>
             <a href="merchant.html" class="sidebar-link" data-page="merchant"><span class="nav-icon">&#9743;</span>商家管理</a>
             <a href="history.html" class="sidebar-link" data-page="history"><span class="nav-icon">&#9776;</span>交易记录</a>
             <a href="admin.html" class="sidebar-link" data-page="admin"><span class="nav-icon">&#9733;</span>管理后台</a>
@@ -26,7 +26,7 @@
 
     <main class="main">
         <div class="topbar">
-            <h1 class="page-title">积分兑换商城</h1>
+            <h1 class="page-title">水龙头</h1>
             <button id="connectBtn" class="btn-connect">连接 MetaMask</button>
         </div>
 
@@ -39,38 +39,33 @@
 
         <div class="content-grid">
             <div class="panel">
-                <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                    可兑换奖品
-                    <select id="redeem-merchant-filter" onchange="renderItems()" style="width:auto;font-size:0.8rem;">
-                        <option value="all">全部商家</option>
-                    </select>
+                <div class="panel-header">💧 领取测试积分</div>
+                <p style="color:var(--text-muted);margin-bottom:1rem;font-size:0.9rem;">
+                    每个地址每天可免费领取 <strong>5 LYL</strong> 测试积分。<br>
+                    领取的积分可用于商城购物和兑换奖品体验。
+                </p>
+                <div id="faucetInfo" style="background:var(--bg-card);border-radius:8px;padding:1rem;margin-bottom:1rem;display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span>⏱️ 上次领取时间</span>
+                        <span id="lastClaimTime">—</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">
+                        <span>🕐 可再次领取</span>
+                        <span id="nextClaimTime" style="color:var(--accent);">—</span>
+                    </div>
                 </div>
-                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:12px;">使用 LYL 积分兑换奖品，兑换将调用合约销毁积分。</p>
-                <div id="redeem-list" class="product-grid"></div>
+                <button id="faucetBtn">💧 领取 5 LYL</button>
             </div>
-            <div class="panel">
-                <div class="panel-header">我的兑换记录</div>
-                <div id="my-redemptions"><p class="hint">暂无兑换记录</p></div>
+            <div class="panel" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.85rem;">
+                水龙头为测试用户提供免费积分，方便体验 LoyaltyLink 的完整功能流程。
             </div>
         </div>
 
         <div id="status"></div>
     </main>
 
-    <div id="confirm-dialog" class="dialog-overlay">
-        <div class="dialog-box">
-            <h3>确认兑换</h3>
-            <p id="confirm-text"></p>
-            <p style="color:var(--text-muted);font-size:0.8rem;">确认后将在 MetaMask 中发起交易</p>
-            <div class="dialog-buttons">
-                <button class="btn-secondary" id="btn-cancel-dialog">取消</button>
-                <button id="btn-confirm-dialog">确认兑换</button>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
     <script src="js/common.js"></script>
-    <script src="js/redeem.js"></script>
+    <script src="js/faucet.js"></script>
 </body>
 </html>

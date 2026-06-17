@@ -408,4 +408,293 @@ describe("LoyaltyToken", function () {
                 .withArgs(owner.address);
         });
     });
+
+    // ========== FR-06: 积分过期机制 ==========
+
+    describe("积分过期机制", function () {
+        it("Owner 可以设置积分有效期", async function () {
+            const secs = 180 * 24 * 3600;
+            await token.setExpiryTime(secs);
+            expect(await token.expiryTime()).to.equal(secs);
+        });
+
+        it("非 Owner 不能设置积分有效期", async function () {
+            const secs = 180 * 24 * 3600;
+            await expect(
+                token.connect(user1).setExpiryTime(secs)
+            ).to.be.revertedWithCustomError(token, "OwnableUnauthorizedAccount");
+        });
+
+        it("设为 0 表示永不过期", async function () {
+            await token.setExpiryTime(0);
+            expect(await token.expiryTime()).to.equal(0);
+        });
+
+        it("reward 后应更新用户 lastActivity", async function () {
+            await token.addMerchant(merchant1.address);
+            const tx = await token.connect(merchant1).reward(user1.address, 100);
+            const receipt = await tx.wait();
+            const block = await ethers.provider.getBlock(receipt.blockNumber);
+            const activity = await token.lastActivity(user1.address);
+            expect(activity).to.equal(block.timestamp);
+        });
+
+        it("spend 后应更新用户 lastActivity", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            const tx = await token.connect(merchant1).spend(user1.address, 30);
+            const receipt = await tx.wait();
+            const block = await ethers.provider.getBlock(receipt.blockNumber);
+            const activity = await token.lastActivity(user1.address);
+            expect(activity).to.equal(block.timestamp);
+        });
+
+        it("transfer 后应更新发送方 lastActivity", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            const tx = await token.connect(user1).transfer(user2.address, 30);
+            const receipt = await tx.wait();
+            const block = await ethers.provider.getBlock(receipt.blockNumber);
+            const activity = await token.lastActivity(user1.address);
+            expect(activity).to.equal(block.timestamp);
+        });
+
+        it("redeemTokens 后应更新用户 lastActivity", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            const tx = await token.connect(user1).redeemTokens(20);
+            const receipt = await tx.wait();
+            const block = await ethers.provider.getBlock(receipt.blockNumber);
+            const activity = await token.lastActivity(user1.address);
+            expect(activity).to.equal(block.timestamp);
+        });
+
+        it("未过期时 checkAndBurnExpired 应返回 0", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+            // staticCall 模拟调用获取返回值（不实际修改状态）
+            const expired = await token.checkAndBurnExpired.staticCall(user1.address);
+            expect(expired).to.equal(0);
+            expect(await token.balanceOf(user1.address)).to.equal(100);
+        });
+
+        it("过期后 checkAndBurnExpired 应销毁全部积分", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+
+            // 快进 366 天
+            await ethers.provider.send("evm_increaseTime", [366 * 24 * 3600]);
+            await ethers.provider.send("evm_mine", []);
+
+            // staticCall 获取预期返回值
+            const expectedExpired = await token.checkAndBurnExpired.staticCall(user1.address);
+            expect(expectedExpired).to.equal(100);
+
+            // 实际执行交易
+            await token.checkAndBurnExpired(user1.address);
+            expect(await token.balanceOf(user1.address)).to.equal(0);
+        });
+
+        it("过期销毁应触发 PointsExpired 事件", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+
+            await ethers.provider.send("evm_increaseTime", [366 * 24 * 3600]);
+            await ethers.provider.send("evm_mine", []);
+
+            await expect(token.checkAndBurnExpired(user1.address))
+                .to.emit(token, "PointsExpired")
+                .withArgs(user1.address, 100);
+        });
+
+        it("expiryTime=0 时永不过期", async function () {
+            await token.setExpiryTime(0);
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+
+            await ethers.provider.send("evm_increaseTime", [1000 * 24 * 3600]); // 1000天
+            await ethers.provider.send("evm_mine", []);
+
+            const expired = await token.checkAndBurnExpired.staticCall(user1.address);
+            expect(expired).to.equal(0);
+            expect(await token.balanceOf(user1.address)).to.equal(100);
+        });
+
+        it("新用户（无活动记录）过期检查应返回 0", async function () {
+            const expired = await token.checkAndBurnExpired.staticCall(user1.address);
+            expect(expired).to.equal(0);
+        });
+
+        it("用户有活动后更新 lastActivity 可避免过期", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+
+            // 快进 200 天（未过期）
+            await ethers.provider.send("evm_increaseTime", [200 * 24 * 3600]);
+            await ethers.provider.send("evm_mine", []);
+
+            // 再次 reward 刷新活动时间
+            await token.connect(merchant1).reward(user1.address, 50);
+            expect(await token.balanceOf(user1.address)).to.equal(150);
+
+            // 再快进 200 天（距上次活动仅200天，未过期）
+            await ethers.provider.send("evm_increaseTime", [200 * 24 * 3600]);
+            await ethers.provider.send("evm_mine", []);
+
+            const expired = await token.checkAndBurnExpired.staticCall(user1.address);
+            expect(expired).to.equal(0);
+        });
+
+        it("暂停后不能调用 checkAndBurnExpired", async function () {
+            await token.addMerchant(merchant1.address);
+            await token.connect(merchant1).reward(user1.address, 100);
+
+            await ethers.provider.send("evm_increaseTime", [366 * 24 * 3600]);
+            await ethers.provider.send("evm_mine", []);
+
+            await token.pause();
+            await expect(
+                token.checkAndBurnExpired(user1.address)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+    });
+
+    // ========== FR-07: 商家间结算 ==========
+
+    describe("商家间结算", function () {
+        beforeEach(async function () {
+            await token.addMerchant(merchant1.address);
+            await token.addMerchant(merchant2.address);
+            // merchant1 需要持有积分才能结算（可以从某用户 reward 然后 spend 给自己？不...
+            // 实际上 settle 用的是 transfer，商家需要先有余额
+            // 让 merchant1 通过 reward 给 user1 然后... 不对，商家本身不能直接获得积分
+            // 现实场景：用户向商家转账（作为积分支付），然后商家之间结算
+            // 测试中：让 user1 获得积分后转给 merchant1
+            await token.connect(merchant1).reward(user1.address, 500);
+            await token.connect(user1).transfer(merchant1.address, 200);
+        });
+
+        it("商家可以向另一商家结算积分", async function () {
+            await expect(token.connect(merchant1).settle(merchant2.address, 100))
+                .to.emit(token, "Settlement")
+                .withArgs(merchant1.address, merchant2.address, 100);
+            expect(await token.balanceOf(merchant1.address)).to.equal(100);
+            expect(await token.balanceOf(merchant2.address)).to.equal(100);
+        });
+
+        it("非商家不能调用结算", async function () {
+            await expect(
+                token.connect(user1).settle(merchant2.address, 100)
+            ).to.be.revertedWith("LoyaltyToken: Not a merchant");
+        });
+
+        it("目标地址必须是注册商家", async function () {
+            await expect(
+                token.connect(merchant1).settle(user1.address, 100)
+            ).to.be.revertedWith("LoyaltyToken: Target not a merchant");
+        });
+
+        it("余额不足时结算应回退", async function () {
+            await expect(
+                token.connect(merchant1).settle(merchant2.address, 999)
+            ).to.be.revertedWith("LoyaltyToken: Insufficient balance");
+        });
+
+        it("暂停后不能结算", async function () {
+            await token.pause();
+            await expect(
+                token.connect(merchant1).settle(merchant2.address, 50)
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+    });
+
+    // ========== FR-09: 水龙头 ==========
+
+    describe("水龙头", function () {
+        it("用户可以领取水龙头积分", async function () {
+            await expect(token.connect(user1).faucet())
+                .to.emit(token, "FaucetClaim")
+                .withArgs(user1.address, ethers.parseEther("50"));
+            expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("50"));
+        });
+
+        it("领取水龙头后应更新 lastActivity", async function () {
+            await token.connect(user1).faucet();
+            const activity = await token.lastActivity(user1.address);
+            expect(activity).to.be.greaterThan(0);
+        });
+
+        it("冷却期内不能重复领取", async function () {
+            await token.connect(user1).faucet();
+            await expect(
+                token.connect(user1).faucet()
+            ).to.be.revertedWith("LoyaltyToken: Faucet cooldown not elapsed");
+        });
+
+        it("冷却期过后可以再次领取", async function () {
+            await token.connect(user1).faucet();
+
+            await ethers.provider.send("evm_increaseTime", [24 * 3600 + 1]); // 1天+1秒
+            await ethers.provider.send("evm_mine", []);
+
+            await token.connect(user1).faucet();
+            expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("100"));
+        });
+
+        it("暂停后不能领取水龙头", async function () {
+            await token.pause();
+            await expect(
+                token.connect(user1).faucet()
+            ).to.be.revertedWithCustomError(token, "EnforcedPause");
+        });
+
+        it("不同用户互不影响", async function () {
+            await token.connect(user1).faucet();
+            // user2 不受 user1 冷却影响
+            await token.connect(user2).faucet();
+            expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("50"));
+            expect(await token.balanceOf(user2.address)).to.equal(ethers.parseEther("50"));
+        });
+    });
+
+    // ========== FR-10: 积分汇率 ==========
+
+    describe("积分汇率", function () {
+        beforeEach(async function () {
+            await token.addMerchant(merchant1.address);
+        });
+
+        it("商家可以设置汇率", async function () {
+            await expect(token.connect(merchant1).setExchangeRate(200))
+                .to.emit(token, "ExchangeRateSet")
+                .withArgs(merchant1.address, 200);
+            expect(await token.exchangeRates(merchant1.address)).to.equal(200);
+        });
+
+        it("非商家不能设置汇率", async function () {
+            await expect(
+                token.connect(user1).setExchangeRate(200)
+            ).to.be.revertedWith("LoyaltyToken: Not a merchant");
+        });
+
+        it("汇率必须大于 0", async function () {
+            await expect(
+                token.connect(merchant1).setExchangeRate(0)
+            ).to.be.revertedWith("LoyaltyToken: Rate must be positive");
+        });
+
+        it("不同商家可以设置不同的汇率", async function () {
+            await token.addMerchant(merchant2.address);
+            await token.connect(merchant1).setExchangeRate(100);
+            await token.connect(merchant2).setExchangeRate(200);
+            expect(await token.exchangeRates(merchant1.address)).to.equal(100);
+            expect(await token.exchangeRates(merchant2.address)).to.equal(200);
+        });
+
+        it("商家可以修改已设置的汇率", async function () {
+            await token.connect(merchant1).setExchangeRate(100);
+            await token.connect(merchant1).setExchangeRate(150);
+            expect(await token.exchangeRates(merchant1.address)).to.equal(150);
+        });
+    });
 });

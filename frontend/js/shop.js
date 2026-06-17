@@ -7,12 +7,12 @@
 
 // ========== 默认商品目录 ==========
 var DEFAULT_PRODUCTS = [
-    { id: "bubble_tea",  name: "珍珠奶茶",       price: 15, merchant: "官方", icon: "🧋" },
-    { id: "coffee",      name: "拿铁咖啡",       price: 22, merchant: "官方", icon: "☕" },
-    { id: "printing",    name: "黑白打印(10页)", price: 5,  merchant: "官方", icon: "🖨️" },
-    { id: "laundry",     name: "洗衣服务",       price: 30, merchant: "官方", icon: "👕" },
-    { id: "fruit_tea",   name: "水果茶",         price: 18, merchant: "官方", icon: "🍹" },
-    { id: "binding",     name: "论文装订",       price: 12, merchant: "官方", icon: "📚" }
+    { id: "bubble_tea",  name: "珍珠奶茶",       price: 15, pointsRequired: 150, merchant: "官方", icon: "🧋" },
+    { id: "coffee",      name: "拿铁咖啡",       price: 22, pointsRequired: 220, merchant: "官方", icon: "☕" },
+    { id: "printing",    name: "黑白打印(10页)", price: 5,  pointsRequired: 50,  merchant: "官方", icon: "🖨️" },
+    { id: "laundry",     name: "洗衣服务",       price: 30, pointsRequired: 300, merchant: "官方", icon: "👕" },
+    { id: "fruit_tea",   name: "水果茶",         price: 18, pointsRequired: 180, merchant: "官方", icon: "🍹" },
+    { id: "binding",     name: "论文装订",       price: 12, pointsRequired: 120, merchant: "官方", icon: "📚" }
 ];
 
 /** 合并默认商品 + 商家自定义商品 */

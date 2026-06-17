@@ -21,7 +21,7 @@ const LL = window.LL || {};
     let currentAccount = null;
 
     /** 合约地址（部署脚本自动更新） */
-    const contractAddress = "0x8D36e0A3f6a23fCc12E206D735e71Ebd461d010d";
+    const contractAddress = "0x35FBB483C743402FefAf6f4144984F5755941207";
 
     /** Ganache Chain ID (1337 = 0x539) */
     const requiredChainId = "0x539";
@@ -447,8 +447,17 @@ const LL = window.LL || {};
         if (msg.indexOf("Not a merchant") !== -1 || msg.indexOf("LoyaltyToken: Not a merchant") !== -1) {
             return "操作失败：当前账户不是联盟商家，请联系管理员添加";
         }
+        if (msg.indexOf("Target not a merchant") !== -1) {
+            return "操作失败：结算目标地址不是注册商家";
+        }
         if (msg.indexOf("Insufficient balance") !== -1 || msg.indexOf("LoyaltyToken: Insufficient balance") !== -1) {
             return "操作失败：用户积分余额不足，无法完成此操作";
+        }
+        if (msg.indexOf("Faucet cooldown not elapsed") !== -1) {
+            return "操作失败：水龙头冷却时间未到，请稍后再领取";
+        }
+        if (msg.indexOf("Rate must be positive") !== -1) {
+            return "操作失败：汇率必须大于 0";
         }
         if (msg.indexOf("EnforcedPause") !== -1) {
             return "操作失败：合约已被管理员暂停，所有积分操作暂时冻结";

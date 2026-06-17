@@ -9,6 +9,10 @@
 - **积分发行与消费** — 商家通过 `reward` 铸币发放积分，通过 `spend` 销毁积分完成消费
 - **用户积分兑换** — 用户通过 `redeemTokens` 自主销毁积分兑换奖品
 - **用户自由转账** — 支持积分在任意地址间点对点转账
+- **商家间结算** — 联盟商家可通过 `settle` 互相转账积分
+- **积分汇率** — 商家可自定义汇率（默认 1元=10积分），创建商品时自动换算定价
+- **积分过期** — 支持设置有效期（默认 365 天），过期积分自动销毁
+- **水龙头** — 测试用户每日可免费领取 5 LYL
 - **权限分级** — 四级角色（管理员 / 商家 / 用户），OpenZeppelin Ownable + Pausable + 自定义 modifier 控制
 - **紧急控制** — 管理员可暂停/恢复合约，阻止异常操作
 - **前端角色门禁** — 非管理员无法进入管理后台，非商家无法进入商家后台
@@ -39,6 +43,7 @@ loyaltylink/
 │   ├── redeem.html + js/redeem.js  # 积分兑换（兑换奖品）
 │   ├── merchant.html + merchant.js  # 商户端（发放/扣除积分、订单处理）
 │   ├── history.html + js/history.js # 交易记录（链上事件+链下记录）
+│   ├── faucet.html + js/faucet.js   # 水龙头（免费领取测试积分）
 │   ├── admin.html + admin.js  # 管理端（商家白名单、暂停/恢复）
 │   ├── js/common.js           # 前端公共模块（钱包/合约/角色校验）
 │   ├── style.css              # 共用样式
@@ -96,6 +101,7 @@ npm start
 | 积分商城 | `http://localhost:3000/shop.html` | 所有用户 |
 | 积分兑换 | `http://localhost:3000/redeem.html` | 所有用户 |
 | 交易记录 | `http://localhost:3000/history.html` | 所有用户 |
+| 水龙头 | `http://localhost:3000/faucet.html` | 所有用户 |
 
 🎬 完整演示流程见 [docs/演示流程.md](docs/演示流程.md)。
 
@@ -110,6 +116,10 @@ npm start
 | `balanceOf(address)` → `uint256` | 查询余额 |
 | `merchants(address)` → `bool` | 查询是否为商家 |
 | `owner()` → `address` | 合约所有者 |
+| `exchangeRates(address)` → `uint256` | 查询商家积分汇率 |
+| `lastFaucetClaim(address)` → `uint256` | 查询上次水龙头领取时间 |
+| `expiryTime()` → `uint256` | 查询积分有效期（秒） |
+| `FAUCET_AMOUNT()` → `uint256` | 水龙头单次领取量（5 LYL） |
 
 ### 写方法
 
@@ -121,7 +131,14 @@ npm start
 | `reward(address, uint256)` | `onlyMerchant` | 向用户发放积分（mint） |
 | `spend(address, uint256)` | `onlyMerchant` | 从用户扣除积分（burn） |
 | `redeemTokens(uint256)` | 任何人 | 用户自主销毁积分兑换 |
+| `faucet()` | 任何人 | 领取测试积分（5 LYL/天） |
+| `settle(address, uint256)` | `onlyMerchant` | 商家间结算转账 |
+| `setExchangeRate(uint256)` | `onlyMerchant` | 设置积分汇率 |
+| `checkAndBurnExpired(address)` | 任何人 | 检查并销毁过期积分 |
+| `setExpiryTime(uint256)` | `onlyOwner` | 设置积分有效期 |
 | `transfer(address, uint256)` | 任何人 | 转账积分 |
+| `approve(address, uint256)` | 任何人 | 授权额度 |
+| `transferFrom(address, address, uint256)` | 授权用户 | 代理转账 |
 | `approve(address, uint256)` | 任何人 | 授权额度 |
 | `transferFrom(address, address, uint256)` | 授权用户 | 代理转账 |
 
