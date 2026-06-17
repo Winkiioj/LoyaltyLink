@@ -185,8 +185,8 @@ Write-Host ""
 Write-Host "MetaMask accounts (import private keys from Ganache to use):" -ForegroundColor Yellow
 Write-Host "  Account 0 = Admin (Owner)" -ForegroundColor Yellow
 Write-Host "  Account 1 = Merchant (whitelisted)" -ForegroundColor Yellow
-Write-Host "  Account 2 = User A (initial 200 LYL)" -ForegroundColor Yellow
-Write-Host "  Account 4 = User B (initial 100 LYL)" -ForegroundColor Yellow
+Write-Host "  Account 2 = User A (initial 5000 LYL)" -ForegroundColor Yellow
+Write-Host "  Account 4 = User B (initial 2000 LYL)" -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "Press Ctrl+C to stop the frontend server" -ForegroundColor DarkGray

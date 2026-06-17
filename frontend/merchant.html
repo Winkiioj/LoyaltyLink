@@ -35,6 +35,7 @@
             <a href="merchant.html" class="sidebar-link active" data-page="merchant"><span class="nav-icon">&#9743;</span>商家管理</a>
             <a href="history.html" class="sidebar-link" data-page="history"><span class="nav-icon">&#9776;</span>交易记录</a>
             <a href="admin.html" class="sidebar-link" data-page="admin"><span class="nav-icon">&#9733;</span>管理后台</a>
+            <a href="faucet.html" class="sidebar-link" data-page="faucet"><span class="nav-icon">&#9746;</span>水龙头</a>
         </nav>
         <div class="sidebar-footer">ERC-20 &middot; Ganache</div>
     </aside>
@@ -81,6 +82,28 @@
             </div>
         </div>
 
+        <!-- 商家间结算 & 汇率设置 -->
+        <div class="content-grid cols2" style="grid-template-columns: 1fr 1fr;">
+            <div class="panel form-compact">
+                <div class="panel-header">🤝 商家间结算</div>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.5rem;">向其他联盟商家转账积分用于结算</p>
+                <input type="text" id="settleAddress" placeholder="目标商家地址"><span class="field-error"></span>
+                <input type="number" id="settleAmount" placeholder="LYL 数量" step="1" min="1"><span class="field-error"></span>
+                <button id="settleBtn">结算转账</button>
+            </div>
+            <div class="panel form-compact">
+                <div class="panel-header">💱 积分汇率设置</div>
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.5rem;">设置积分兑换比例（1元 = ? 积分，默认10）</p>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="white-space:nowrap;">1 元 =</span>
+                    <input type="number" id="exchangeRateInput" placeholder="10" min="1" step="1" style="flex:1;">
+                    <span style="white-space:nowrap;">积分</span>
+                </div>
+                <button id="setRateBtn" style="margin-top:8px;">设置汇率</button>
+                <div id="currentRate" style="margin-top:8px;font-size:0.85rem;color:var(--text-secondary);">当前汇率：—</div>
+            </div>
+        </div>
+
         <!-- 商品管理（全宽）-->
         <div class="panel form-compact">
             <div class="panel-header">我的商品（将显示在商城）</div>
@@ -91,6 +114,7 @@
                 <input type="text" id="productIcon" placeholder="图标 (emoji)" style="max-width:80px;" value="🛍️">
                 <button id="addProductBtn" style="width:auto;white-space:nowrap;">添加商品</button>
             </div>
+            <div id="rateHint" style="font-size:0.78rem;color:var(--accent);margin-top:4px;display:none;"></div>
             <div class="scroll-list" id="my-products" style="margin-top:8px;max-height:100px;"><p class="hint">尚未添加自定义商品</p></div>
         </div>
 

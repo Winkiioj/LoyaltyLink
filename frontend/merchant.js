@@ -7,6 +7,7 @@
 LL.onReady = async function (tokenInfo) {
     LL.setActiveNav();
     await updateMerchantInfo();
+    await updateExchangeRateDisplay();
     loadPendingOrders();
     loadRedemptionRequests();
     renderMyProducts();
@@ -423,6 +424,9 @@ function addProduct() {
     priceInput.value = "";
     pointsInput.value = "";
     iconInput.value = "🛍️";
+    resetPointsManual();
+    var hintEl = document.getElementById("rateHint");
+    if (hintEl) hintEl.style.display = "none";
     LL.clearAllFieldErrors();
     renderMyProducts();
 }
@@ -535,25 +539,222 @@ function renderMyRedeemItems() {
     container.innerHTML = html;
 }
 
+// ========== 商家间结算 ==========
+async function settle() {
+    var restoreBtn = function () {};
+
+    try {
+        LL.clearAllFieldErrors();
+
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
+        if (!contract || !currentAccount) {
+            LL.showStatus("请先连接钱包", "error");
+            return;
+        }
+
+        var toAddress = document.getElementById("settleAddress").value.trim();
+        var amount = document.getElementById("settleAmount").value.trim();
+
+        var hasError = false;
+
+        if (!toAddress) {
+            LL.showFieldError("settleAddress", "请输入目标商家地址");
+            hasError = true;
+        } else if (!LL.web3().utils.isAddress(toAddress)) {
+            LL.showFieldError("settleAddress", "请输入有效的以太坊地址 (0x...)");
+            hasError = true;
+        }
+
+        if (!amount) {
+            LL.showFieldError("settleAmount", "请输入结算数量");
+            hasError = true;
+        } else if (Number(amount) <= 0) {
+            LL.showFieldError("settleAmount", "结算数量必须大于 0");
+            hasError = true;
+        }
+
+        if (hasError) return;
+
+        var confirmed = await LL.confirm(
+            "确认商家间结算",
+            "即将向 " + LL.truncateAddress(toAddress) + " 结算 " + amount + " LYL\n\n目标地址必须是已注册的联盟商家"
+        );
+        if (!confirmed) return;
+
+        var amountRaw = LL.web3().utils.toWei(amount, "ether");
+
+        restoreBtn = LL.setButtonLoading("settleBtn", "结算中...");
+
+        await contract.methods.settle(toAddress, amountRaw).send({
+            from: currentAccount,
+            gas: 300000
+        });
+
+        await updateMerchantInfo();
+
+        LL.showStatus("结算成功！已向 " + LL.truncateAddress(toAddress) + " 转账 " + amount + " LYL", "success");
+
+        document.getElementById("settleAddress").value = "";
+        document.getElementById("settleAmount").value = "";
+    } catch (error) {
+        console.error("结算失败:", error);
+        LL.showStatus(LL.translateError(error), "error");
+    } finally {
+        restoreBtn();
+    }
+}
+
+// ========== 汇率缓存（供商品定价自动换算） ==========
+var cachedExchangeRate = 10; // 默认 1元 = 10积分
+
+// ========== 积分汇率设置 ==========
+async function setExchangeRate() {
+    var restoreBtn = function () {};
+
+    try {
+        LL.clearAllFieldErrors();
+
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+
+        if (!contract || !currentAccount) {
+            LL.showStatus("请先连接钱包", "error");
+            return;
+        }
+
+        var rateInput = document.getElementById("exchangeRateInput");
+        var rate = rateInput.value.trim();
+
+        if (!rate) {
+            LL.showFieldError("exchangeRateInput", "请输入汇率值");
+            return;
+        }
+        if (Number(rate) <= 0) {
+            LL.showFieldError("exchangeRateInput", "汇率必须大于 0");
+            return;
+        }
+
+        var confirmed = await LL.confirm(
+            "确认设置汇率",
+            "即将设置积分汇率为：1 元 = " + rate + " 积分\n\n用户购物时将按此汇率计算应获得的积分"
+        );
+        if (!confirmed) return;
+
+        restoreBtn = LL.setButtonLoading("setRateBtn", "设置中...");
+
+        await contract.methods.setExchangeRate(rate).send({
+            from: currentAccount,
+            gas: 200000
+        });
+
+        await updateExchangeRateDisplay();
+        LL.showStatus("汇率已设置：1 元 = " + rate + " 积分", "success");
+        rateInput.value = "";
+    } catch (error) {
+        console.error("设置汇率失败:", error);
+        LL.showStatus(LL.translateError(error), "error");
+    } finally {
+        restoreBtn();
+    }
+}
+
+/** 查询并显示当前商家的积分汇率，同时缓存供商品定价使用 */
+async function updateExchangeRateDisplay() {
+    try {
+        var contract = LL.contract();
+        var currentAccount = LL.currentAccount();
+        if (!contract || !currentAccount) return;
+
+        var rate = await contract.methods.exchangeRates(currentAccount).call();
+        var rateNum = parseInt(rate);
+        cachedExchangeRate = rateNum > 0 ? rateNum : 10;
+        var displayEl = document.getElementById("currentRate");
+        if (displayEl) {
+            if (rateNum > 0) {
+                displayEl.innerText = "当前汇率：1 元 = " + rateNum + " 积分";
+                displayEl.style.color = "var(--accent)";
+            } else {
+                displayEl.innerText = "当前汇率：未设置（默认 10）";
+                displayEl.style.color = "var(--text-muted)";
+            }
+        }
+    } catch (err) {
+        console.error("查询汇率失败:", err);
+    }
+}
+
+// ========== 汇率自动换算（商品定价） ==========
+
+/** 根据价格和汇率自动计算应发积分，并填充积分输入框 */
+function autoCalcPoints() {
+    var priceInput = document.getElementById("productPrice");
+    var pointsInput = document.getElementById("productPoints");
+    var hintEl = document.getElementById("rateHint");
+    if (!priceInput || !pointsInput) return;
+
+    var price = parseFloat(priceInput.value);
+    if (price > 0 && cachedExchangeRate > 0) {
+        var autoPoints = Math.round(price * cachedExchangeRate);
+        // 仅当用户未手动修改过积分字段时才自动填充
+        if (pointsInput.dataset.manual !== "true") {
+            pointsInput.value = autoPoints;
+        }
+        if (hintEl) {
+            hintEl.innerText = "💱 按汇率自动换算: ¥" + price + " × " + cachedExchangeRate + " = " + autoPoints + " LYL";
+            hintEl.style.display = "block";
+        }
+    } else if (hintEl) {
+        hintEl.style.display = "none";
+    }
+}
+
+/** 标记积分字段被手动修改，此后不再自动换算 */
+function markPointsManual() {
+    var pointsInput = document.getElementById("productPoints");
+    if (pointsInput) {
+        pointsInput.dataset.manual = "true";
+    }
+}
+
+/** 重置积分字段的手动标记（商品添加成功后调用） */
+function resetPointsManual() {
+    var pointsInput = document.getElementById("productPoints");
+    if (pointsInput) {
+        pointsInput.dataset.manual = "false";
+    }
+}
+
 // ========== 事件绑定（防御性注册） ==========
 (function bindEvents() {
     try {
         var btnIds = {
             connectBtn: LL.connectWallet, rewardBtn: reward, spendBtn: spend,
-            queryBtn: queryBalance, addProductBtn: addProduct, addRedeemBtn: addRedeemItem
+            queryBtn: queryBalance, addProductBtn: addProduct, addRedeemBtn: addRedeemItem,
+            settleBtn: settle, setRateBtn: setExchangeRate
         };
         for (var id in btnIds) {
             var el = document.getElementById(id);
             if (el) el.addEventListener("click", btnIds[id]);
         }
 
-        var inputIds = ["rewardAddress", "rewardAmount", "spendAddress", "spendAmount", "queryAddress"];
+        var inputIds = ["rewardAddress", "rewardAmount", "spendAddress", "spendAmount",
+            "queryAddress", "settleAddress", "settleAmount", "exchangeRateInput"];
         for (var i = 0; i < inputIds.length; i++) {
             (function (inputId) {
                 var inp = document.getElementById(inputId);
                 if (inp) inp.addEventListener("input", function () { LL.clearFieldError(inputId); });
             })(inputIds[i]);
         }
+
+        // 汇率自动换算：价格输入时自动计算积分
+        var priceInp = document.getElementById("productPrice");
+        if (priceInp) priceInp.addEventListener("input", autoCalcPoints);
+
+        // 积分字段被手动修改时标记，不再自动覆盖
+        var pointsInp = document.getElementById("productPoints");
+        if (pointsInp) pointsInp.addEventListener("input", markPointsManual);
     } catch (e) {
         console.error("merchant.js 事件绑定失败:", e);
     }

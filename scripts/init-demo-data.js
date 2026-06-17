@@ -3,8 +3,8 @@
  *
  * 做什么：
  *   1. 注册 Account 1 为联盟商家
- *   2. 向 Account 2（用户A）发放 200 LYL 初始积分
- *   3. 向 Account 4（用户B）发放 100 LYL 初始积分
+ *   2. 向 Account 2（用户A）发放 5000 LYL 初始积分
+ *   3. 向 Account 4（用户B）发放 2000 LYL 初始积分
  *
  * 前提：
  *   - Ganache 已在 localhost:7545 运行
@@ -160,8 +160,8 @@ async function main() {
 
   // 6. 发放初始积分（商家操作，reward 需要 onlyMerchant 权限）
   const rewards = [
-    { addr: userA, amount: "200", label: "Account 2 (用户A)" },
-    { addr: userB, amount: "100", label: "Account 4 (用户B)" },
+    { addr: userA, amount: "5000", label: "Account 2 (用户A)" },
+    { addr: userB, amount: "2000", label: "Account 4 (用户B)" },
   ];
 
   for (const r of rewards) {

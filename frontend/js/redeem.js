@@ -5,12 +5,12 @@
 
 // ========== 默认兑换奖品 ==========
 var DEFAULT_REDEEMS = [
-    { id: "coupon_5",     name: "¥5 优惠券",         points: 50,   icon: "🎫", desc: "联盟商家通用", merchant: "官方" },
-    { id: "milk_tea",     name: "珍珠奶茶兑换券",     points: 30,   icon: "🧋", desc: "到店出示即可", merchant: "官方" },
-    { id: "notebook",     name: "定制笔记本",         points: 150,  icon: "📓", desc: "LoyaltyLink 周边", merchant: "官方" },
-    { id: "coupon_20",    name: "¥20 优惠券",         points: 200,  icon: "🎟️", desc: "联盟商家通用", merchant: "官方" },
-    { id: "movie_ticket", name: "电影票一张",         points: 500,  icon: "🎬", desc: "2D/3D 通兑", merchant: "官方" },
-    { id: "earphones",    name: "蓝牙耳机",           points: 1000, icon: "🎧", desc: "品牌无线耳机", merchant: "官方" }
+    { id: "coupon_5",     name: "¥5 优惠券",         points: 500,    icon: "🎫", desc: "联盟商家通用", merchant: "官方" },
+    { id: "milk_tea",     name: "珍珠奶茶兑换券",     points: 1500,   icon: "🧋", desc: "到店出示即可", merchant: "官方" },
+    { id: "notebook",     name: "定制笔记本",         points: 5000,   icon: "📓", desc: "LoyaltyLink 周边", merchant: "官方" },
+    { id: "coupon_20",    name: "¥20 优惠券",         points: 2000,   icon: "🎟️", desc: "联盟商家通用", merchant: "官方" },
+    { id: "movie_ticket", name: "电影票一张",         points: 12000,  icon: "🎬", desc: "2D/3D 通兑", merchant: "官方" },
+    { id: "earphones",    name: "蓝牙耳机",           points: 30000,  icon: "🎧", desc: "品牌无线耳机", merchant: "官方" }
 ];
 
 /** 合并默认 + 商家自定义 */
